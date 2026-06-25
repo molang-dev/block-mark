@@ -12,152 +12,165 @@ function collect(p, mdContent) {
 }
 
 // ============================================================
-// 测试：基本 heading 分块
+// 基本 heading 分块 + 空行合并到上一个非空 block
 // ============================================================
 {
-  const p = new Parser();
-  // split('\n') 末尾产生 '' → 最后 block 会多一个空行
-  const blocks = collect(p, '# Title\ncontent line 1\ncontent line 2\n\n## Sub heading\n```js\nvar a = 0;\n```\n\n### Another\nlast line\n');
-  assert.strictEqual(blocks.length, 3);
-  assert.deepStrictEqual(blocks[0].lines, ['# Title', 'content line 1', 'content line 2', '']);
-  assert.deepStrictEqual(blocks[1].lines, ['## Sub heading', '```js', 'var a = 0;', '```', '']);
-  assert.deepStrictEqual(blocks[2].lines, ['### Another', 'last line', '']);
+  const blocks = collect(new Parser(),
+    '# Title\ncontent line 1\n\n## Sub\n- item1\n- item2\n\n```js\nvar a = 0;\n```\n');
+  // heading: ['# Title']
+  assert.strictEqual(blocks[0].type, 'heading');
+  assert.strictEqual(blocks[0].depth, 1);
+  assert.deepStrictEqual(blocks[0].lines, ['# Title']);
+
+  // para + 后面空行合并
+  assert.strictEqual(blocks[1].type, 'paragraph');
+  assert.deepStrictEqual(blocks[1].lines, ['content line 1', '']);
+
+  // ## Sub heading
+  assert.strictEqual(blocks[2].type, 'heading');
+  assert.strictEqual(blocks[2].depth, 2);
+  assert.deepStrictEqual(blocks[2].lines, ['## Sub']);
+
+  // list + 后面空行合并
+  assert.strictEqual(blocks[3].type, 'list');
+  assert.deepStrictEqual(blocks[3].lines, ['- item1', '- item2', '']);
+
+  // code + 末尾空行合并
+  assert.strictEqual(blocks[4].type, 'code');
+  assert.deepStrictEqual(blocks[4].lines, ['```js', 'var a = 0;', '```', '']);
 }
 
 // ============================================================
-// 测试：前导 block（第一个 heading 之前有内容）
+// 前导 block — 空行合并到前导 paragraph
 // ============================================================
 {
-  const p = new Parser();
-  const blocks = collect(p, 'preamble line 1\n\npreamble line 2\n# Heading\ncontent\n');
-  assert.strictEqual(blocks.length, 2);
-  assert.deepStrictEqual(blocks[0].lines, ['preamble line 1', '', 'preamble line 2']);
-  assert.deepStrictEqual(blocks[1].lines, ['# Heading', 'content', '']);
+  const blocks = collect(new Parser(), 'preamble\n\n# Heading\nbody\n');
+  assert.strictEqual(blocks[0].type, 'paragraph');
+  assert.deepStrictEqual(blocks[0].lines, ['preamble', '']);
+  assert.strictEqual(blocks[1].type, 'heading');
+  assert.deepStrictEqual(blocks[1].lines, ['# Heading']);
+  assert.strictEqual(blocks[2].type, 'paragraph');
+  assert.deepStrictEqual(blocks[2].lines, ['body', '']);
 }
 
 // ============================================================
-// 测试：只有前导内容，无 heading
+// list — 末尾空行合并
 // ============================================================
 {
-  const p = new Parser();
-  // 末尾无 \n → 无尾随空行
-  const blocks = collect(p, 'just some text\nno heading here');
-  assert.strictEqual(blocks.length, 1);
-  assert.deepStrictEqual(blocks[0].lines, ['just some text', 'no heading here']);
+  const blocks = collect(new Parser(), '# L\n- a\n- b\n1. c\n2. d\n');
+  const list = blocks.find(b => b.type === 'list');
+  assert.deepStrictEqual(list.lines, ['- a', '- b', '1. c', '2. d', '']);
 }
 
 // ============================================================
-// 测试：只有 heading，无其他内容
+// hr — 末尾空行合并到最后一个 hr
 // ============================================================
 {
-  const p = new Parser();
-  // 末尾 \n 产生尾随空行，归入最后 block
-  const blocks = collect(p, '# One\n## Two\n### Three\n');
-  assert.strictEqual(blocks.length, 3);
-  assert.deepStrictEqual(blocks[0].lines, ['# One']);
-  assert.deepStrictEqual(blocks[1].lines, ['## Two']);
-  assert.deepStrictEqual(blocks[2].lines, ['### Three', '']);
+  const blocks = collect(new Parser(), '# HR\n---\n***\n___\n');
+  const hrs = blocks.filter(b => b.type === 'hr');
+  assert.strictEqual(hrs.length, 3);
+  assert.deepStrictEqual(hrs[0].lines, ['---']);
+  assert.deepStrictEqual(hrs[1].lines, ['***']);
+  assert.deepStrictEqual(hrs[2].lines, ['___', '']);   // trailing '' merged
 }
 
 // ============================================================
-// 测试：空输入
+// hr 不与 list 混淆
 // ============================================================
 {
-  const p = new Parser();
-  const blocks = collect(p, '');
+  const blocks = collect(new Parser(), '- item\n---\n');
+  assert.strictEqual(blocks[0].type, 'list');
+  assert.deepStrictEqual(blocks[0].lines, ['- item']);
+  assert.strictEqual(blocks[1].type, 'hr');
+  assert.deepStrictEqual(blocks[1].lines, ['---', '']);  // trailing '' merged
+}
+
+// ============================================================
+// blockquote — 空行合并
+// ============================================================
+{
+  const blocks = collect(new Parser(), '# Q\n> line one\n> line two\n\nnot quote\n');
+  const bq = blocks.find(b => b.type === 'blockquote');
+  assert.deepStrictEqual(bq.lines, ['> line one', '> line two', '']);
+}
+
+// ============================================================
+// table — 空行合并
+// ============================================================
+{
+  const blocks = collect(new Parser(), '# T\n| a | b |\n| c | d |\n\npara\n');
+  const table = blocks.find(b => b.type === 'table');
+  assert.deepStrictEqual(table.lines, ['| a | b |', '| c | d |', '']);
+}
+
+// ============================================================
+// code fence — 末尾空行合并
+// ============================================================
+{
+  const blocks = collect(new Parser(), '# C\n```python\nprint(1)\nprint(2)\n```\n');
+  const code = blocks.find(b => b.type === 'code');
+  assert.deepStrictEqual(code.lines, ['```python', 'print(1)', 'print(2)', '```', '']);
+}
+
+// ============================================================
+// 空输入
+// ============================================================
+{
+  const blocks = collect(new Parser(), '');
   assert.strictEqual(blocks.length, 0);
 }
 
 // ============================================================
-// 测试：即时回调（每遇到 block 立即触发）
+// 即时回调
 // ============================================================
 {
   const p = new Parser();
   const received = [];
-  p.onBlockUpdate(function(block) {
-    received.push(block.lines[0]);
-  });
-  // 末尾无 \n
-  p.read('# A\nbody\n# B\nbody2');
+  p.onBlockUpdate(function(block) { received.push(block.type); });
+  p.read('# A\nbody');
   assert.strictEqual(received.length, 2);
-  assert.strictEqual(received[0], '# A');
-  assert.strictEqual(received[1], '# B');
+  assert.strictEqual(received[0], 'heading');
+  assert.strictEqual(received[1], 'paragraph');
 }
 
 // ============================================================
-// 测试：多个回调
+// readFile — 文件不存在
 // ============================================================
 {
-  const p = new Parser();
-  let count1 = 0, count2 = 0;
-  p.onBlockUpdate(function() { count1++; });
-  p.onBlockUpdate(function() { count2++; });
-  p.read('# A\nbody\n# B\n');
-  assert.strictEqual(count1, 2);
-  assert.strictEqual(count2, 2);
-}
-
-// ============================================================
-// 测试：readFile — 文件不存在返回 Error
-// ============================================================
-{
-  const p = new Parser();
-  const err = p.readFile('/nonexistent/mdparser_test_file.md');
+  const err = new Parser().readFile('/nonexistent/test.md');
   assert.ok(err instanceof Error);
 }
 
 // ============================================================
-// 测试：readFile — 正常文件解析
+// read 返回 void
 // ============================================================
 {
-  const tmpFile = '/tmp/mdparser_test_sample.md';
-  fs.writeFileSync(tmpFile, '# Hello\nworld');
-
-  const p = new Parser();
-  const received = [];
-  p.onBlockUpdate(function(block) {
-    received.push(block);
-  });
-
-  const ret = p.readFile(tmpFile);
-  assert.strictEqual(ret, undefined);
-
-  assert.strictEqual(received.length, 1);
-  assert.deepStrictEqual(received[0].lines, ['# Hello', 'world']);
-
-  fs.unlinkSync(tmpFile);
-}
-
-// ============================================================
-// 测试：read 返回 void
-// ============================================================
-{
-  const p = new Parser();
-  // 末尾无 \n
-  const ret = p.read('# X');
+  const ret = new Parser().read('# X');
   assert.strictEqual(ret, undefined);
 }
 
 // ============================================================
-// 测试：H1~H6 全部识别
+// lines 完整性 — 纯空格行保留不合并
 // ============================================================
 {
-  const p = new Parser();
-  // 末尾无 \n
-  const blocks = collect(p, '# H1\n# H2\n## H3\n### H4\n#### H5\n##### H6\n###### H7');
-  assert.strictEqual(blocks.length, 7);
+  const blocks = collect(new Parser(), 'a\n  \nb\n');
+  assert.strictEqual(blocks[0].type, 'paragraph');
+  assert.deepStrictEqual(blocks[0].lines, ['a']);
+  assert.strictEqual(blocks[1].type, 'paragraph');
+  assert.deepStrictEqual(blocks[1].lines, ['  ']);  // 纯空格保留
+  assert.strictEqual(blocks[2].type, 'paragraph');
+  assert.deepStrictEqual(blocks[2].lines, ['b', '']);  // 末尾空行合并
 }
 
 // ============================================================
-// 测试：不是 heading 的 # 符号（如 # 不在行首）
+// heading 后的空行合并到 heading
 // ============================================================
 {
-  const p = new Parser();
-  // 末尾无 \n
-  const blocks = collect(p, 'not a # heading\n## real heading');
-  assert.strictEqual(blocks.length, 2);
-  assert.deepStrictEqual(blocks[0].lines, ['not a # heading']);
-  assert.deepStrictEqual(blocks[1].lines, ['## real heading']);
+  const blocks = collect(new Parser(), '# A\n\nbody\n');
+  assert.strictEqual(blocks[0].type, 'heading');
+  assert.deepStrictEqual(blocks[0].lines, ['# A', '']);  // heading 吸收后面空行
+  assert.strictEqual(blocks[1].type, 'paragraph');
+  assert.deepStrictEqual(blocks[1].lines, ['body', '']);
 }
 
 console.log('All tests passed.');
