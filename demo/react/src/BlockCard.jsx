@@ -9,6 +9,7 @@ const TYPE_LABELS = {
   table:      'T',
   blockquote: 'Q',
   hr:         'R',
+  html:       '♢',
 }
 
 export default function BlockCard({ block, style }) {

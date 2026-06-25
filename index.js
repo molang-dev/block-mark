@@ -47,15 +47,22 @@ class Parser {
     const lines = mdContent.split('\n');
     let currentBlock = null;
     let inFence = false;
+    let htmlDepth = 0;
 
     for (const line of lines) {
-      // toggle fence mode — 内部跳过 heading 检测
-      if (/^```/.test(line)) {
+      // toggle fence mode（``` 或 ~~~，前面允许空白）
+      if (/^\s*(`{3,}|~{3,})/.test(line)) {
         inFence = !inFence;
       }
 
-      if (!inFence && /^#{1,6}\s/.test(line)) {
-        // heading outside fence → 开启新 section
+      // 跟踪 HTML 标签深度（fence 外）
+      if (!inFence) {
+        htmlDepth += this._netTagDepth(line);
+        if (htmlDepth < 0) htmlDepth = 0;
+      }
+
+      if (!inFence && htmlDepth === 0 && /^\s*#{1,6}\s/.test(line)) {
+        // heading（不在 fence 内，也不在 html block 内）→ 开启新 section
         if (currentBlock) {
           this._subdivideAndEmit(currentBlock);
         }
@@ -116,6 +123,37 @@ class Parser {
     return result;
   }
 
+  // ---- HTML 辅助 ----
+
+  _isVoid(tagName) {
+    return /^(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i.test(tagName);
+  }
+
+  /**
+   * 计算一行内 HTML 标签的净深度变化。
+   *   <div>  → +1
+   *   </div> → -1
+   *   <br> <img> <input/>  → 0
+   */
+  _netTagDepth(line) {
+    let depth = 0;
+    const re = /<\/?([a-zA-Z][a-zA-Z0-9-]*)(\s[^>]*)?(\/)?>/g;
+    let m;
+    while ((m = re.exec(line)) !== null) {
+      const full = m[0];
+      const tag = m[1];
+      const selfClose = m[3];
+      if (full.startsWith('</')) {
+        depth--;
+      } else if (selfClose !== '/') {
+        if (!this._isVoid(tag)) {
+          depth++;
+        }
+      }
+    }
+    return depth;
+  }
+
   _subdivideAndEmit(rawBlock) {
     const typed = this._subdivide(rawBlock.lines);
     const merged = this._mergeEmptyParas(typed);
@@ -133,8 +171,8 @@ class Parser {
     let i = 0;
 
     // 首行是 heading → 单独作为 heading block
-    if (rawLines.length > 0 && /^#{1,6}\s/.test(rawLines[0])) {
-      const depth = rawLines[0].match(/^(#{1,6})/)[1].length;
+    if (rawLines.length > 0 && /^\s*#{1,6}\s/.test(rawLines[0])) {
+      const depth = rawLines[0].match(/^\s*(#{1,6})/)[1].length;
       blocks.push({ type: 'heading', depth, lines: [rawLines[0]] });
       i = 1;
     }
@@ -142,12 +180,36 @@ class Parser {
     while (i < rawLines.length) {
       const line = rawLines[i];
 
-      // --- code fence ---
-      if (/^```/.test(line)) {
+      // --- html block（最高优先级，在 code fence 前检测）---
+      if (/^\s*<[a-zA-Z][a-zA-Z0-9-]*(\s|>|\/>)/.test(line) && !/^\s*<\//.test(line)) {
+        const m = line.match(/^\s*<([a-zA-Z][a-zA-Z0-9-]*)/);
+        const tag = m[1];
+        const selfClose = /^\s*<[a-zA-Z][a-zA-Z0-9-]*[^>]*\/>/.test(line);
+        if (this._isVoid(tag) || selfClose) {
+          // void 或自闭合 → 单行 html block
+          blocks.push({ type: 'html', lines: [line] });
+          i++;
+          continue;
+        }
+        // 多行 html block — 追踪标签深度
+        let depth = 0;
+        const htmlLines = [];
+        while (i < rawLines.length) {
+          htmlLines.push(rawLines[i]);
+          depth += this._netTagDepth(rawLines[i]);
+          i++;
+          if (depth === 0) break;
+        }
+        blocks.push({ type: 'html', lines: htmlLines });
+        continue;
+      }
+
+      // --- code fence（``` 或 ~~~，前面允许空白）---
+      if (/^\s*(`{3,}|~{3,})/.test(line)) {
         const codeLines = [];
         while (i < rawLines.length) {
           codeLines.push(rawLines[i]);
-          if (codeLines.length > 1 && /^```/.test(rawLines[i])) {
+          if (codeLines.length > 1 && /^\s*(`{3,}|~{3,})/.test(rawLines[i])) {
             i++;
             break;
           }
@@ -158,16 +220,16 @@ class Parser {
       }
 
       // --- hr（在 list 之前检测，避免 --- 被识别为 list）---
-      if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
         blocks.push({ type: 'hr', lines: [line] });
         i++;
         continue;
       }
 
       // --- list（连续的 - / * / + / 1.）---
-      if (/^[\-\*\+]\s/.test(line) || /^\d+\.\s/.test(line)) {
+      if (/^\s*[\-\*\+]\s/.test(line) || /^\s*\d+\.\s/.test(line)) {
         const listLines = [];
-        while (i < rawLines.length && (/^[\-\*\+]\s/.test(rawLines[i]) || /^\d+\.\s/.test(rawLines[i]))) {
+        while (i < rawLines.length && (/^\s*[\-\*\+]\s/.test(rawLines[i]) || /^\s*\d+\.\s/.test(rawLines[i]))) {
           listLines.push(rawLines[i]);
           i++;
         }
@@ -176,9 +238,9 @@ class Parser {
       }
 
       // --- blockquote（连续的 > 行）---
-      if (/^>\s?/.test(line)) {
+      if (/^\s*>\s?/.test(line)) {
         const bqLines = [];
-        while (i < rawLines.length && /^>\s?/.test(rawLines[i])) {
+        while (i < rawLines.length && /^\s*>\s?/.test(rawLines[i])) {
           bqLines.push(rawLines[i]);
           i++;
         }
@@ -187,9 +249,9 @@ class Parser {
       }
 
       // --- table（连续的 |...| 行）---
-      if (/^\|.*\|/.test(line)) {
+      if (/^\s*\|.*\|/.test(line)) {
         const tableLines = [];
-        while (i < rawLines.length && /^\|.*\|/.test(rawLines[i])) {
+        while (i < rawLines.length && /^\s*\|.*\|/.test(rawLines[i])) {
           tableLines.push(rawLines[i]);
           i++;
         }

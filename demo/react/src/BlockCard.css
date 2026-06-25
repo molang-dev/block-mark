@@ -16,6 +16,7 @@
 .card-table      { background: #e8f5e9; }
 .card-blockquote { background: #f3e5f5; }
 .card-hr         { background: #fafafa; }
+.card-html       { background: #fce4ec; }
 
 .card + .card {
   border-top: 1px solid #e0e0e0;
