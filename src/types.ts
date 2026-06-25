@@ -16,6 +16,12 @@ export interface TypedBlock {
   lines: string[]
   /** heading 专用，1-6 */
   depth?: number
+  /** block 序号（0-based） */
+  index: number
+  /** block 在原文档中的起始行号（0-based） */
+  lineStart: number
+  /** block 在原文档中的结束行号 = lineStart + lines.length - 1 */
+  lineEnd: number
 }
 
 export type BlockCallback = (block: TypedBlock) => void

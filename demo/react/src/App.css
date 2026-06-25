@@ -1,8 +1,15 @@
 /* === Layout === */
 .app {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   font-family: system-ui, sans-serif;
+}
+
+.main-row {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
 }
 
 /* === 左侧编辑区 === */
@@ -67,4 +74,32 @@
 .placeholder {
   padding: 20px;
   color: #999;
+}
+
+/* === 底部状态栏 === */
+.bottom-bar {
+  display: flex;
+  height: 24px;
+  line-height: 24px;
+  background: #f5f5f5;
+  border-top: 1px solid #ddd;
+  font-size: 12px;
+  font-family: Menlo, Consolas, monospace;
+  color: #333;
+  flex-shrink: 0;
+}
+
+.bar-left {
+  width: 45%;
+  padding: 0 12px;
+}
+
+.bar-divider {
+  width: 2px;
+  background: #ddd;
+}
+
+.bar-right {
+  flex: 1;
+  padding: 0 12px;
 }

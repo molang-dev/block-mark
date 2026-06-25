@@ -21,12 +21,17 @@ export default function BlockCard({ block, style }) {
         {TYPE_LABELS[block.type]}
         {block.depth != null && block.depth}
       </span>
-      <div className="lines">
-        {block.lines.map((line, i) => (
-          <div key={i} className={line === '' ? 'line-empty' : ''}>
-            {line || ' '}
-          </div>
-        ))}
+      <div className="card-body">
+        <div className="block-info">
+          {block.index} : {block.lineStart} ~ {block.lineEnd}
+        </div>
+        <div className="lines">
+          {block.lines.map((line, i) => (
+            <div key={i} className={line === '' ? 'line-empty' : ''}>
+              {line || ' '}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
