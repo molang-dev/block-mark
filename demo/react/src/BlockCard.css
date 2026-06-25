@@ -1,0 +1,60 @@
+/* === BlockCard === */
+.card {
+  display: flex;
+  gap: 10px;
+  padding: 8px 12px;
+  font-family: Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* --- 类型背景色 --- */
+.card-heading    { background: #e3f2fd; }
+.card-paragraph  { background: #fff; }
+.card-list       { background: #fff3e0; }
+.card-table      { background: #e8f5e9; }
+.card-blockquote { background: #f3e5f5; }
+.card-hr         { background: #fafafa; }
+
+.card + .card {
+  border-top: 1px solid #e0e0e0;
+}
+
+/* --- code 暗色主题 --- */
+.card-code {
+  background: #263238;
+  color: #eee;
+}
+
+/* === Badge === */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: #607d8b;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.card-code .badge {
+  background: #455a64;
+}
+
+/* === Lines === */
+.lines {
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.line-empty {
+  /* 空行占位 — 保持行高但显示为空 */
+}
