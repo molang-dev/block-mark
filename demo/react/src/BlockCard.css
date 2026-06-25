@@ -48,6 +48,23 @@
   background: #455a64;
 }
 
+/* === Card body === */
+.card-body {
+  min-width: 0;
+}
+
+/* === Block info line === */
+.block-info {
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 2px;
+  line-height: 1.4;
+}
+
+.card-code .block-info {
+  color: #78909c;
+}
+
 /* === Lines === */
 .lines {
   line-height: 1.6;

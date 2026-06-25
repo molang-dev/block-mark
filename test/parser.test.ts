@@ -241,4 +241,21 @@ describe('Parser', () => {
     expect(blocks.length).toBeGreaterThan(0)
     unlinkSync(tmp)
   })
+
+  // ============================================================
+  it('getBlockByRawLineNumber — 命中', () => {
+    const p = new Parser()
+    p.read('# A\n\nbody\n')
+    const b = p.getBlockByRawLineNumber(2)
+    expect(b).toBeTruthy()
+    expect(b!.type).toBe('paragraph')
+    expect(b!.lines).toEqual(['body', ''])
+  })
+
+  // ============================================================
+  it('getBlockByRawLineNumber — 未命中返回 null', () => {
+    const p = new Parser()
+    p.read('# A\n')
+    expect(p.getBlockByRawLineNumber(99)).toBeNull()
+  })
 })
