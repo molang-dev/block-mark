@@ -1,4 +1,5 @@
 node_modules/
-.claude/
-CLAUDE.mddist/
-***/dist/
+dist/
+*.tsbuildinfo
+.claude
+CLAUDE.md
