@@ -173,4 +173,24 @@ function collect(p, mdContent) {
   assert.deepStrictEqual(blocks[1].lines, ['body', '']);
 }
 
+// ============================================================
+// code fence 内部 # 不被识别为 heading
+// ============================================================
+{
+  const blocks = collect(new Parser(), '```python\n# 注释\nprint(1)\n```\n');
+  assert.strictEqual(blocks.length, 1);
+  assert.strictEqual(blocks[0].type, 'code');
+  assert.deepStrictEqual(blocks[0].lines, ['```python', '# 注释', 'print(1)', '```', '']);
+}
+
+// ============================================================
+// fence 外的 heading 正常分割
+// ============================================================
+{
+  const blocks = collect(new Parser(), '```python\ncode\n```\n# real heading\nbody\n');
+  const headings = blocks.filter(b => b.type === 'heading');
+  assert.strictEqual(headings.length, 1);
+  assert.deepStrictEqual(headings[0].lines, ['# real heading']);
+}
+
 console.log('All tests passed.');
