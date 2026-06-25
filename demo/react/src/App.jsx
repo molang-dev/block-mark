@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { VariableSizeList } from 'react-window'
-import { Parser } from './parser.js'
+import { Parser } from 'mdparser'
 import BlockCard from './BlockCard.jsx'
 import './App.css'
 
