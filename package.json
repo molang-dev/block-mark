@@ -1,0 +1,10 @@
+{
+  "name": "mdparser",
+  "version": "1.0.0",
+  "description": "Markdown parser — split into heading-delimited blocks",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "license": "MIT"
+}
