@@ -28,13 +28,19 @@ export class Parser {
     const lines = mdContent.split('\n');
     let currentBlock = null;
     let inFence = false;
+    let htmlDepth = 0;
 
     for (const line of lines) {
-      if (/^```/.test(line)) {
+      if (/^\s*(`{3,}|~{3,})/.test(line)) {
         inFence = !inFence;
       }
 
-      if (!inFence && /^#{1,6}\s/.test(line)) {
+      if (!inFence) {
+        htmlDepth += this._netTagDepth(line);
+        if (htmlDepth < 0) htmlDepth = 0;
+      }
+
+      if (!inFence && htmlDepth === 0 && /^\s*#{1,6}\s/.test(line)) {
         if (currentBlock) {
           this._subdivideAndEmit(currentBlock);
         }
@@ -83,6 +89,31 @@ export class Parser {
     return result;
   }
 
+  // ---- HTML 辅助 ----
+
+  _isVoid(tagName) {
+    return /^(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i.test(tagName);
+  }
+
+  _netTagDepth(line) {
+    let depth = 0;
+    const re = /<\/?([a-zA-Z][a-zA-Z0-9-]*)(\s[^>]*)?(\/)?>/g;
+    let m;
+    while ((m = re.exec(line)) !== null) {
+      const full = m[0];
+      const tag = m[1];
+      const selfClose = m[3];
+      if (full.startsWith('</')) {
+        depth--;
+      } else if (selfClose !== '/') {
+        if (!this._isVoid(tag)) {
+          depth++;
+        }
+      }
+    }
+    return depth;
+  }
+
   _subdivideAndEmit(rawBlock) {
     const typed = this._subdivide(rawBlock.lines);
     const merged = this._mergeEmptyParas(typed);
@@ -95,8 +126,8 @@ export class Parser {
     const blocks = [];
     let i = 0;
 
-    if (rawLines.length > 0 && /^#{1,6}\s/.test(rawLines[0])) {
-      const depth = rawLines[0].match(/^(#{1,6})/)[1].length;
+    if (rawLines.length > 0 && /^\s*#{1,6}\s/.test(rawLines[0])) {
+      const depth = rawLines[0].match(/^\s*(#{1,6})/)[1].length;
       blocks.push({ type: 'heading', depth, lines: [rawLines[0]] });
       i = 1;
     }
@@ -104,11 +135,33 @@ export class Parser {
     while (i < rawLines.length) {
       const line = rawLines[i];
 
-      if (/^```/.test(line)) {
+      // --- html block（最高优先级）---
+      if (/^\s*<[a-zA-Z][a-zA-Z0-9-]*(\s|>|\/>)/.test(line) && !/^\s*<\//.test(line)) {
+        const m = line.match(/^\s*<([a-zA-Z][a-zA-Z0-9-]*)/);
+        const tag = m[1];
+        const selfClose = /^\s*<[a-zA-Z][a-zA-Z0-9-]*[^>]*\/>/.test(line);
+        if (this._isVoid(tag) || selfClose) {
+          blocks.push({ type: 'html', lines: [line] });
+          i++;
+          continue;
+        }
+        let depth = 0;
+        const htmlLines = [];
+        while (i < rawLines.length) {
+          htmlLines.push(rawLines[i]);
+          depth += this._netTagDepth(rawLines[i]);
+          i++;
+          if (depth === 0) break;
+        }
+        blocks.push({ type: 'html', lines: htmlLines });
+        continue;
+      }
+
+      if (/^\s*(`{3,}|~{3,})/.test(line)) {
         const codeLines = [];
         while (i < rawLines.length) {
           codeLines.push(rawLines[i]);
-          if (codeLines.length > 1 && /^```/.test(rawLines[i])) {
+          if (codeLines.length > 1 && /^\s*(`{3,}|~{3,})/.test(rawLines[i])) {
             i++;
             break;
           }
@@ -118,15 +171,15 @@ export class Parser {
         continue;
       }
 
-      if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
         blocks.push({ type: 'hr', lines: [line] });
         i++;
         continue;
       }
 
-      if (/^[\-\*\+]\s/.test(line) || /^\d+\.\s/.test(line)) {
+      if (/^\s*[\-\*\+]\s/.test(line) || /^\s*\d+\.\s/.test(line)) {
         const listLines = [];
-        while (i < rawLines.length && (/^[\-\*\+]\s/.test(rawLines[i]) || /^\d+\.\s/.test(rawLines[i]))) {
+        while (i < rawLines.length && (/^\s*[\-\*\+]\s/.test(rawLines[i]) || /^\s*\d+\.\s/.test(rawLines[i]))) {
           listLines.push(rawLines[i]);
           i++;
         }
@@ -134,9 +187,9 @@ export class Parser {
         continue;
       }
 
-      if (/^>\s?/.test(line)) {
+      if (/^\s*>\s?/.test(line)) {
         const bqLines = [];
-        while (i < rawLines.length && /^>\s?/.test(rawLines[i])) {
+        while (i < rawLines.length && /^\s*>\s?/.test(rawLines[i])) {
           bqLines.push(rawLines[i]);
           i++;
         }
@@ -144,9 +197,9 @@ export class Parser {
         continue;
       }
 
-      if (/^\|.*\|/.test(line)) {
+      if (/^\s*\|.*\|/.test(line)) {
         const tableLines = [];
-        while (i < rawLines.length && /^\|.*\|/.test(rawLines[i])) {
+        while (i < rawLines.length && /^\s*\|.*\|/.test(rawLines[i])) {
           tableLines.push(rawLines[i]);
           i++;
         }
