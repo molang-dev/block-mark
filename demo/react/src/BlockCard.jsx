@@ -12,7 +12,8 @@ const TYPE_LABELS = {
   html:       '♢',
 }
 
-export default function BlockCard({ block, dirty = 0, style }) {
+export default function BlockCard({ block, style }) {
+  const dirty = block.dirty ?? 0
   const dirtyClass = dirty === 2 ? 'dirty-lines' : dirty === 1 ? 'dirty-position' : ''
   const typeClass = `card card-${block.type} ${dirtyClass}`
 
