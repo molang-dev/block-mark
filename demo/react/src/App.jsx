@@ -1,9 +1,9 @@
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useCallback, useRef, useMemo } from 'react'
 import { VariableSizeList } from 'react-window'
 import { Parser } from 'mdparser'
 import BlockCard from './BlockCard.jsx'
 import './App.css'
-import testMdRaw from '../../../mytest/test.md?raw'
+import testMdRaw from '../../../mytest/short.md?raw'
 
 function loadMDFile(_path) {
   return testMdRaw
@@ -18,29 +18,49 @@ function cursorLineNumber(text, selectionStart) {
   return before.split('\n').length - 1
 }
 
+function snapshot(b) {
+  return { type: b.type, lines: b.lines, depth: b.depth, index: b.index, lineStart: b.lineStart, lineEnd: b.lineEnd }
+}
+
 export default function App() {
-  const [mdContent, setMdContent] = useState(() => loadMDFile('../test/test.md'))
-  const [blocks, setBlocks] = useState([])
-  const [dirtyMap, setDirtyMap] = useState({})  // { [index]: 1|2 }
+  // 组件内一次性初始化（useRef 懒 init，StrictMode 安全）
+  const initRef = useRef(null)
+  if (!initRef.current) {
+    const p = new Parser()
+    const content = loadMDFile('../test/test.md')
+    p.read(content)
+    initRef.current = { parser: p, content, blocks: p.allBlocks().map(snapshot) }
+  }
+
+  const [mdContent, setMdContent] = useState(initRef.current.content)
+  const [blocks, setBlocks] = useState(initRef.current.blocks)
+  const [dirtyMap, setDirtyMap] = useState({})
   const [cursorLine, setCursorLine] = useState(0)
   const listRef = useRef(null)
   const textareaRef = useRef(null)
-  const parserRef = useRef(new Parser())
+  const parserRef = useRef(initRef.current.parser)
   const dirtyTimerRef = useRef(null)
-  const prevContentRef = useRef('')
+  const prevContentRef = useRef(initRef.current.content)
 
-  const freshBlocks = useCallback((p) => {
-    return p.allBlocks().map(b => ({ type:b.type, lines:b.lines, depth:b.depth, index:b.index, lineStart:b.lineStart, lineEnd:b.lineEnd }))
-  }, [])
+  // 替代 useEffect：render 期用 ref 守卫，只注册一次
+  const cbInit = useRef(false)
+  if (!cbInit.current) {
+    cbInit.current = true
+    initRef.current.parser.onUpdate((_changed, isEnd) => {
+      console.log('onUpdate: ', _changed, 'onUpdate end')
+      if (!isEnd) return
+      const p = parserRef.current
+      setBlocks(p.allBlocks().map(snapshot))
+      const map = {}
+      for (const b of p.allBlocks()) {
+        if ((b.dirty ?? 0) > 0) map[b.index] = b.dirty
+      }
+      setDirtyMap(map)
+      listRef.current?.resetAfterIndex(0)
+    })
+  }
 
-  // 从 parser._blocks 收集 dirty 状态
-  const collectDirty = useCallback((p) => {
-    const map = {}
-    for (const b of p.allBlocks()) {
-      if (b.dirty && b.dirty > 0) map[b.index] = b.dirty
-    }
-    return map
-  }, [])
+  const clearDirty = useCallback(() => { setDirtyMap({}) }, [])
 
   const parse = useCallback(() => {
     const p = parserRef.current
@@ -49,26 +69,6 @@ export default function App() {
     p.read(mdContent)
     prevContentRef.current = mdContent
   }, [mdContent])
-
-  // Register onUpdate once — drives setBlocks + setDirtyMap for all read/updateLine calls
-  useEffect(() => {
-    const p = parserRef.current
-    p.onUpdate((_changed, isEnd) => {
-      if (!isEnd) return
-      setBlocks(freshBlocks(p))
-      setDirtyMap(collectDirty(p))
-    })
-  }, [freshBlocks, collectDirty])
-
-  useEffect(() => { parse() }, [])
-
-  useEffect(() => {
-    if (listRef.current) listRef.current.resetAfterIndex(0)
-  }, [blocks])
-
-  const clearDirty = useCallback(() => {
-    setDirtyMap({})
-  }, [])
 
   const handleTextareaChange = useCallback((e) => {
     const newContent = e.target.value
@@ -80,15 +80,12 @@ export default function App() {
     const oldLines = prevContent.split('\n')
     const newLines = newContent.split('\n')
 
-    // Find first differing line from start
     const minLen = Math.min(oldLines.length, newLines.length)
     let sl = 0
     while (sl < minLen && oldLines[sl] === newLines[sl]) sl++
 
-    // Truly identical (no change)
     if (sl === oldLines.length && sl === newLines.length) return
 
-    // Find matching tail
     const maxTail = Math.min(oldLines.length - sl, newLines.length - sl)
     let tail = 0
     while (tail < maxTail &&
@@ -96,23 +93,13 @@ export default function App() {
       tail++
     }
 
-    // startLine: clamp to last old line in case of pure append (sl === oldLines.length)
     const startLine = Math.min(sl, Math.max(0, oldLines.length - 1))
-    const endLine = oldLines.length - 1 - tail    // last changed old line
-    const newEndLine = newLines.length - 1 - tail  // last changed new line
+    const endLine    = oldLines.length - 1 - tail
+    const newEndLine = newLines.length - 1 - tail
 
     const p = parserRef.current
-    const affected = p.findBlocks(startLine, Math.max(startLine, endLine))
-
-    if (affected.length !== 1) {
-      // 0: out of range; 2+: cross-block
-      p.read(newContent)
-      return
-    }
-
-    const segEnd = Math.max(startLine, newEndLine)
-    const newSegment = newLines.slice(startLine, segEnd + 1).join('\n')
-    console.log(newSegment)
+    const newSegment = newLines.slice(startLine, Math.max(startLine, newEndLine) + 1).join('\n')
+    console.log("updateLine",startLine, endLine, newSegment, 'updateLine end')
     p.updateLine(startLine, endLine, newSegment)
 
     if (dirtyTimerRef.current) clearTimeout(dirtyTimerRef.current)
