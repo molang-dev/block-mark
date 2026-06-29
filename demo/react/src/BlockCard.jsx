@@ -12,8 +12,9 @@ const TYPE_LABELS = {
   html:       '♢',
 }
 
-export default function BlockCard({ block, style }) {
-  const typeClass = `card card-${block.type}`
+export default function BlockCard({ block, dirty = 0, style }) {
+  const dirtyClass = dirty === 2 ? 'dirty-lines' : dirty === 1 ? 'dirty-position' : ''
+  const typeClass = `card card-${block.type} ${dirtyClass}`
 
   return (
     <div className={typeClass} style={style}>
@@ -24,11 +25,12 @@ export default function BlockCard({ block, style }) {
       <div className="card-body">
         <div className="block-info">
           {block.index} : {block.lineStart} ~ {block.lineEnd}
+          <span className={`dirty-tag ${dirty === 2 ? 'dirty-tag-lines' : dirty === 1 ? 'dirty-tag-pos' : ''}`}> dirty: {dirty}</span>
         </div>
         <div className="lines">
           {block.lines.map((line, i) => (
             <div key={i} className={line === '' ? 'line-empty' : ''}>
-              {line || ' '}
+              {line === '' ? <span className="empty-marker">↵</span> : line}
             </div>
           ))}
         </div>

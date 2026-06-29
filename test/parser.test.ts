@@ -6,7 +6,7 @@ import type { TypedBlock, BlockType } from '../src/types'
 function collect(mdContent: string): TypedBlock[] {
   const p = new Parser()
   const blocks: TypedBlock[] = []
-  p.onBlockUpdate(b => blocks.push(b))
+  p.onUpdate((list) => { for (const b of list) blocks.push(b) })
   p.read(mdContent)
   return blocks
 }
@@ -107,7 +107,7 @@ describe('Parser', () => {
   it('即时回调', () => {
     const p = new Parser()
     const received: BlockType[] = []
-    p.onBlockUpdate(b => received.push(b.type))
+    p.onUpdate(list => list.forEach(b => received.push(b.type)))
     p.read('# A\nbody')
     expect(received).toEqual(['heading', 'paragraph'])
   })
@@ -220,12 +220,12 @@ describe('Parser', () => {
   })
 
   // ============================================================
-  it('onDone + allBlocks', () => {
+  it('allBlocks + isEnd', () => {
     const p = new Parser()
-    let done = false
-    p.onDone(() => { done = true })
+    let endReceived = false
+    p.onUpdate((_blocks, isEnd) => { if (isEnd) endReceived = true })
     p.read('# Hello\n')
-    expect(done).toBe(true)
+    expect(endReceived).toBe(true)
     expect(p.allBlocks().length).toBeGreaterThan(0)
   })
 
@@ -235,27 +235,238 @@ describe('Parser', () => {
     writeFileSync(tmp, '# Hi\nworld\n')
     const p = new Parser()
     const blocks: TypedBlock[] = []
-    p.onBlockUpdate(b => blocks.push(b))
+    p.onUpdate(list => { for (const b of list) blocks.push(b) })
     const ret = p.readFile(tmp)
-    expect(ret).toBeUndefined()
+    expect(ret).toBeNull()
     expect(blocks.length).toBeGreaterThan(0)
     unlinkSync(tmp)
   })
 
   // ============================================================
-  it('getBlockByRawLineNumber — 命中', () => {
+  it('getBlockByLineNumber — 命中', () => {
     const p = new Parser()
     p.read('# A\n\nbody\n')
-    const b = p.getBlockByRawLineNumber(2)
+    const b = p.findBlocks(2, 2)[0] ?? null
     expect(b).toBeTruthy()
     expect(b!.type).toBe('paragraph')
     expect(b!.lines).toEqual(['body', ''])
   })
 
   // ============================================================
-  it('getBlockByRawLineNumber — 未命中返回 null', () => {
+  it('getBlockByLineNumber — 未命中返回 null', () => {
     const p = new Parser()
     p.read('# A\n')
-    expect(p.getBlockByRawLineNumber(99)).toBeNull()
+    expect(p.findBlocks(99, 99)[0] ?? null).toBeNull()
+  })
+
+  // ============================================================
+  it('updateLine — 单行纯文本原地替换', () => {
+    const p = new Parser()
+    p.read('# Title\nold text\n')
+    p.updateLine(1, 1, 'new text')
+    const b = p.findBlocks(1, 1)[0] ?? null
+    expect(b).toBeTruthy()
+    expect(b!.type).toBe('paragraph')
+    expect(b!.lines).toEqual(['new text', ''])
+  })
+
+  // ============================================================
+  it('updateLine — 多行文本展开', () => {
+    const p = new Parser()
+    p.read('# Title\nsingle\n')
+    p.updateLine(1, 1, 'line a\nline b')
+    const all = p.allBlocks()
+    expect(all.length).toBe(3) // heading + 2 paragraphs
+    expect(all[1].lines).toEqual(['line a'])
+    expect(all[2].lines).toEqual(['line b', ''])
+  })
+
+  // ============================================================
+  it('updateLine — 插入 heading 导致 block 拆分', () => {
+    const p = new Parser()
+    p.read('# Title\nline one\n')
+    p.updateLine(1, 1, '## Sub\nsub body')
+    const all = p.allBlocks()
+    expect(all.length).toBe(3)
+    expect(all[1].type).toBe('heading')
+    expect(all[1].depth).toBe(2)
+    expect(all[1].lines).toEqual(['## Sub'])
+    expect(all[2].type).toBe('paragraph')
+    expect(all[2].lines).toEqual(['sub body', ''])
+    expect(all[0].lineStart).toBe(0)
+    expect(all[1].lineStart).toBe(1)
+    expect(all[2].lineStart).toBe(2)
+  })
+
+  // ============================================================
+  it('updateLine — 闭合 code fence 拆分 block', () => {
+    const p = new Parser()
+    p.read('```js\ncode\nmore\n```\n')
+    p.updateLine(1, 1, '```')
+    const all = p.allBlocks()
+    expect(all.length).toBe(3)
+    expect(all[0].type).toBe('code')
+    expect(all[0].lines).toEqual(['```js', '```'])
+    expect(all[1].type).toBe('paragraph')
+    expect(all[1].lines).toEqual(['more'])
+    expect(all[2].type).toBe('code')
+    expect(all[2].lines).toEqual(['```', ''])
+  })
+
+  // ============================================================
+  it('updateLine — 后续 block 行号偏移修正', () => {
+    const p = new Parser()
+    p.read('a\n\nb\n')
+    p.updateLine(1, 1, 'x\ny\nz')
+    const all = p.allBlocks()
+    expect(all[1].lines).toEqual(['x'])
+    expect(all[2].lines).toEqual(['y'])
+    expect(all[3].lines).toEqual(['z'])
+    const bBlock = all.find(b => b.lines[0] === 'b')
+    expect(bBlock!.lineStart).toBe(4)
+  })
+
+  // ============================================================
+  it('updateLine — heading 替换为普通文本', () => {
+    const p = new Parser()
+    p.read('# Title\nbody\n')
+    p.updateLine(0, 0, 'just text')
+    const b = p.findBlocks(0, 0)[0] ?? null
+    expect(b!.type).toBe('paragraph')
+    expect(b!.lines).toEqual(['just text'])
+  })
+
+  // ============================================================
+  it('updateLine — heading 替换为新 heading', () => {
+    const p = new Parser()
+    p.read('# Title\nbody\n')
+    p.updateLine(0, 0, '## New Title')
+    const b = p.findBlocks(0, 0)[0] ?? null
+    expect(b!.type).toBe('heading')
+    expect(b!.depth).toBe(2)
+    expect(b!.lines).toEqual(['## New Title'])
+  })
+
+  // ============================================================
+  it('updateLine — list item 替换为普通文本', () => {
+    const p = new Parser()
+    p.read('- item 1\n- item 2\n')
+    p.updateLine(0, 0, 'plain text')
+    const all = p.allBlocks()
+    expect(all[0].type).toBe('paragraph')
+    expect(all[0].lines).toEqual(['plain text'])
+    const list = all.find(b => b.type === 'list')
+    expect(list).toBeTruthy()
+    expect(list!.lines).toEqual(['- item 2', ''])
+  })
+
+  // ============================================================
+  it('updateLine — table row 替换为普通文本', () => {
+    const p = new Parser()
+    p.read('| a | b |\n| c | d |\n')
+    p.updateLine(0, 0, 'no longer table')
+    const all = p.allBlocks()
+    expect(all[0].type).toBe('paragraph')
+    expect(all[0].lines).toEqual(['no longer table'])
+    const table = all.find(b => b.type === 'table')
+    expect(table).toBeTruthy()
+    expect(table!.lines).toEqual(['| c | d |', ''])
+  })
+
+  // ============================================================
+  it('updateLine — blockquote 替换为普通文本', () => {
+    const p = new Parser()
+    p.read('> quote line\n> more quote\n')
+    p.updateLine(0, 0, 'plain text')
+    const all = p.allBlocks()
+    expect(all[0].type).toBe('paragraph')
+    expect(all[0].lines).toEqual(['plain text'])
+    const bq = all.find(b => b.type === 'blockquote')
+    expect(bq).toBeTruthy()
+    expect(bq!.lines).toEqual(['> more quote', ''])
+  })
+
+  // ============================================================
+  it('updateLine — hr 替换为普通文本', () => {
+    const p = new Parser()
+    p.read('---\n')
+    p.updateLine(0, 0, 'hello')
+    const b = p.findBlocks(0, 0)[0] ?? null
+    expect(b!.type).toBe('paragraph')
+    expect(b!.lines).toEqual(['hello', ''])
+  })
+
+  // ============================================================
+  it('updateLine — 普通文本变成 hr', () => {
+    const p = new Parser()
+    p.read('text\n---\n')
+    p.updateLine(0, 0, '***')
+    const b = p.findBlocks(0, 0)[0] ?? null
+    expect(b!.type).toBe('hr')
+    expect(b!.lines).toEqual(['***'])
+  })
+
+  // ============================================================
+  it('updateLine — html block 标签替换为普通文本', () => {
+    const p = new Parser()
+    p.read('<div>content</div>\n')
+    p.updateLine(0, 0, 'plain')
+    const b = p.findBlocks(0, 0)[0] ?? null
+    expect(b!.type).toBe('paragraph')
+    expect(b!.lines).toEqual(['plain', ''])
+  })
+
+  // ============================================================
+  it('updateLine — 在 html block 中插入闭合标签', () => {
+    const p = new Parser()
+    p.read('<div>\n  <p>text</p>\n</div>\n')
+    p.updateLine(1, 1, '</div>')
+    const all = p.allBlocks()
+    expect(all.length).toBeGreaterThanOrEqual(2)
+    expect(all[0].type).toBe('html')
+    expect(all[0].lines).toEqual(['<div>', '</div>'])
+  })
+
+  // ============================================================
+  it('dirty — updateLine 标记 dirty=2，再次 updateLine 清零重标', () => {
+    const p = new Parser()
+    p.read('# A\nline1\nline2\n')
+    p.updateLine(1, 1, 'changed')
+    const dirtyAfterFirst = p.allBlocks().map(b => b.dirty)
+    expect(dirtyAfterFirst.some(d => d === 2)).toBe(true)
+
+    p.updateLine(2, 2, 'changed2')
+    // 所有 dirty 先被清零再重新标记，第一次的 dirty 不应残留
+    const dirtyAfterSecond = p.allBlocks().map(b => b.dirty)
+    // 只有受影响的 block dirty=2，其他 dirty=0
+    const nonZero = dirtyAfterSecond.filter(d => (d ?? 0) > 0)
+    expect(nonZero.length).toBeGreaterThan(0)
+    // 上次影响的 block（line1）如果未受影响，应是 dirty=0
+    const b1 = p.findBlocks(1, 1)[0] ?? null
+    expect(b1!.dirty).toBe(0)
+  })
+
+  // ============================================================
+  it('isEnd=true 边界 — buffer 恰好整除 batchSize', () => {
+    const p = new Parser()
+    p.setBatchSize([2])
+    let lastIsEnd = false
+    p.onUpdate((_blocks, isEnd) => { lastIsEnd = isEnd })
+    // 生成恰好 2 个 block
+    p.read('# A\n# B\n')
+    expect(lastIsEnd).toBe(true)
+  })
+
+  // ============================================================
+  it('read 空内容后再 read 有内容 — onUpdate 收到 isEnd=true', () => {
+    const p = new Parser()
+    const log: Array<{ len: number; isEnd: boolean }> = []
+    p.onUpdate((list, isEnd) => log.push({ len: list.length, isEnd }))
+    p.read('')
+    p.read('# X\n')
+    // 第一次 read('') → onUpdate([], true)
+    // 第二次 read('# X\n') → onUpdate([heading], true)
+    expect(log[0]).toEqual({ len: 0, isEnd: true })
+    expect(log[log.length - 1].isEnd).toBe(true)
   })
 })
