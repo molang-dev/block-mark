@@ -3,7 +3,7 @@ import { VariableSizeList } from 'react-window'
 import { Parser } from 'mdparser'
 import BlockCard from './BlockCard.jsx'
 import './App.css'
-import testMdRaw from '../../../mytest/short.md?raw'
+import testMdRaw from '../../../mytest/test.md?raw'
 
 function loadMDFile(_path) {
   return testMdRaw
@@ -23,47 +23,48 @@ function snapshot(b) {
 }
 
 export default function App() {
+  // setter 中转 ref，让 initRef 里的 onUpdate 回调能访问到 useState 的 setter
+  const setBlocksRef  = useRef(null)
+  const setDirtyRef   = useRef(null)
+  const listRef       = useRef(null)
+  const textareaRef   = useRef(null)
+  const dirtyTimerRef = useRef(null)
+  const prevContentRef = useRef(null)
+
   // 组件内一次性初始化（useRef 懒 init，StrictMode 安全）
   const initRef = useRef(null)
   if (!initRef.current) {
     const p = new Parser()
     const content = loadMDFile('../test/test.md')
-    p.read(content)
+    p.onUpdate((_changed, isEnd) => {
+      console.log('onUpdate: ', _changed, 'onUpdate end')
+      if (!isEnd) return
+      setBlocksRef.current?.(p.allBlocks().map(snapshot))
+      const map = {}
+      for (const b of p.allBlocks()) {
+        if ((b.dirty ?? 0) > 0) map[b.index] = b.dirty
+      }
+      setDirtyRef.current?.(map)
+      listRef.current?.resetAfterIndex(0)
+    })
+    p.read(content)   // 触发 onUpdate；此时 setter ref 还是 null，跳过 setState
     initRef.current = { parser: p, content, blocks: p.allBlocks().map(snapshot) }
+    prevContentRef.current = content
   }
 
   const [mdContent, setMdContent] = useState(initRef.current.content)
   const [blocks, setBlocks] = useState(initRef.current.blocks)
   const [dirtyMap, setDirtyMap] = useState({})
   const [cursorLine, setCursorLine] = useState(0)
-  const listRef = useRef(null)
-  const textareaRef = useRef(null)
-  const parserRef = useRef(initRef.current.parser)
-  const dirtyTimerRef = useRef(null)
-  const prevContentRef = useRef(initRef.current.content)
 
-  // 替代 useEffect：render 期用 ref 守卫，只注册一次
-  const cbInit = useRef(false)
-  if (!cbInit.current) {
-    cbInit.current = true
-    initRef.current.parser.onUpdate((_changed, isEnd) => {
-      console.log('onUpdate: ', _changed, 'onUpdate end')
-      if (!isEnd) return
-      const p = parserRef.current
-      setBlocks(p.allBlocks().map(snapshot))
-      const map = {}
-      for (const b of p.allBlocks()) {
-        if ((b.dirty ?? 0) > 0) map[b.index] = b.dirty
-      }
-      setDirtyMap(map)
-      listRef.current?.resetAfterIndex(0)
-    })
-  }
+  // 每次 render 把真正的 setter 挂上去（stable ref，无副作用）
+  setBlocksRef.current = setBlocks
+  setDirtyRef.current  = setDirtyMap
 
   const clearDirty = useCallback(() => { setDirtyMap({}) }, [])
 
   const parse = useCallback(() => {
-    const p = parserRef.current
+    const p = initRef.current.parser
     setBlocks([])
     setDirtyMap({})
     p.read(mdContent)
@@ -97,7 +98,7 @@ export default function App() {
     const endLine    = oldLines.length - 1 - tail
     const newEndLine = newLines.length - 1 - tail
 
-    const p = parserRef.current
+    const p = initRef.current.parser
     const newSegment = newLines.slice(startLine, Math.max(startLine, newEndLine) + 1).join('\n')
     console.log("updateLine",startLine, endLine, newSegment, 'updateLine end')
     p.updateLine(startLine, endLine, newSegment)
