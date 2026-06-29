@@ -74,5 +74,34 @@
 }
 
 .line-empty {
-  /* 空行占位 — 保持行高但显示为空 */
+  /* 空行占位 — 保持行高 */
+}
+
+.empty-marker {
+  color: #bdbdbd;
+  font-size: 11px;
+  user-select: none;
+}
+
+/* === Dirty 标记 === */
+.dirty-lines {
+  border-left: 3px solid #e53935;
+}
+
+.dirty-position {
+  border-left: 3px solid #fdd835;
+}
+
+.dirty-tag {
+  margin-left: 8px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.dirty-tag-lines {
+  color: #e53935;
+}
+
+.dirty-tag-pos {
+  color: #f9a825;
 }
