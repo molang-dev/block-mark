@@ -1,15 +1,11 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { shallowRef, triggerRef, ref, computed } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import { Parser } from 'mdparser'
 import BlockCard from './BlockCard.vue'
 import './App.css'
 import testMdRaw from '../../../mytest/test.md?raw'
-
-function snapshot(b) {
-  return { type: b.type, lines: b.lines, depth: b.depth, index: b.index, lineStart: b.lineStart, lineEnd: b.lineEnd }
-}
 
 function cursorLineNumber(text, selectionStart) {
   return text.slice(0, selectionStart).split('\n').length - 1
@@ -19,34 +15,24 @@ function cursorLineNumber(text, selectionStart) {
 const p = new Parser()
 
 const mdContent  = ref(testMdRaw)
-const blocks     = ref([])
-const dirtyMap   = ref({})
 const cursorLine = ref(0)
 
+// shallowRef 持有 parser 内部数组，零拷贝；triggerRef 强制通知 Vue 重渲染
+const blocks = shallowRef(p.allBlocks())
+
 let prevContent = testMdRaw
-let dirtyTimer  = null
 
 // 先注册回调，再 read，让初始解析也走 onUpdate
 p.onUpdate((_changed, isEnd) => {
   console.log('onUpdate: ', _changed, 'onUpdate end')
   if (!isEnd) return
-  blocks.value = p.allBlocks().map(snapshot)
-  const map = {}
-  for (const b of p.allBlocks()) {
-    if ((b.dirty ?? 0) > 0) map[b.index] = b.dirty
-  }
-  dirtyMap.value = map
+  blocks.value = p.allBlocks()   // p.read() 会 reset 内部数组，需重新赋值
+  triggerRef(blocks)             // updateLine 是 in-place mutation，强制触发
 })
 
 p.read(testMdRaw)
 
-function clearDirty() {
-  dirtyMap.value = {}
-}
-
 function parse() {
-  blocks.value = []
-  dirtyMap.value = {}
   p.read(mdContent.value)
   prevContent = mdContent.value
 }
@@ -79,9 +65,6 @@ function handleInput(e) {
   const newSegment = newLines.slice(startLine, Math.max(startLine, newEndLine) + 1).join('\n')
   console.log('updateLine', startLine, endLine, newSegment, 'updateLine end')
   p.updateLine(startLine, endLine, newSegment)
-
-  if (dirtyTimer) clearTimeout(dirtyTimer)
-  dirtyTimer = setTimeout(clearDirty, 5000)
 }
 
 function handleCursor(e) {
@@ -127,7 +110,7 @@ const matchedBlock = computed(() => {
           >
             <template #default="{ item, index, active }">
               <DynamicScrollerItem :item="item" :active="active" :data-index="index">
-                <BlockCard :block="item" :dirty="dirtyMap[item.index] || 0" />
+                <BlockCard :block="item" />
               </DynamicScrollerItem>
             </template>
           </DynamicScroller>

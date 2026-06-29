@@ -18,17 +18,11 @@ function cursorLineNumber(text, selectionStart) {
   return before.split('\n').length - 1
 }
 
-function snapshot(b) {
-  return { type: b.type, lines: b.lines, depth: b.depth, index: b.index, lineStart: b.lineStart, lineEnd: b.lineEnd }
-}
-
 export default function App() {
   // setter 中转 ref，让 initRef 里的 onUpdate 回调能访问到 useState 的 setter
-  const setBlocksRef  = useRef(null)
-  const setDirtyRef   = useRef(null)
-  const listRef       = useRef(null)
-  const textareaRef   = useRef(null)
-  const dirtyTimerRef = useRef(null)
+  const setRevRef   = useRef(null)
+  const listRef     = useRef(null)
+  const textareaRef = useRef(null)
   const prevContentRef = useRef(null)
 
   // 组件内一次性初始化（useRef 懒 init，StrictMode 安全）
@@ -39,34 +33,26 @@ export default function App() {
     p.onUpdate((_changed, isEnd) => {
       console.log('onUpdate: ', _changed, 'onUpdate end')
       if (!isEnd) return
-      setBlocksRef.current?.(p.allBlocks().map(snapshot))
-      const map = {}
-      for (const b of p.allBlocks()) {
-        if ((b.dirty ?? 0) > 0) map[b.index] = b.dirty
-      }
-      setDirtyRef.current?.(map)
+      setRevRef.current?.()
       listRef.current?.resetAfterIndex(0)
     })
-    p.read(content)   // 触发 onUpdate；此时 setter ref 还是 null，跳过 setState
-    initRef.current = { parser: p, content, blocks: p.allBlocks().map(snapshot) }
+    p.read(content)   // 触发 onUpdate；此时 setRevRef 还是 null，跳过 setState
+    initRef.current = { parser: p, content }
     prevContentRef.current = content
   }
 
   const [mdContent, setMdContent] = useState(initRef.current.content)
-  const [blocks, setBlocks] = useState(initRef.current.blocks)
-  const [dirtyMap, setDirtyMap] = useState({})
+  const [rev, setRev] = useState(0)
   const [cursorLine, setCursorLine] = useState(0)
 
-  // 每次 render 把真正的 setter 挂上去（stable ref，无副作用）
-  setBlocksRef.current = setBlocks
-  setDirtyRef.current  = setDirtyMap
+  // 每次 render 挂上最新的 rev setter（stable ref，无副作用）
+  setRevRef.current = () => setRev(r => r + 1)
 
-  const clearDirty = useCallback(() => { setDirtyMap({}) }, [])
+  // 直接读 parser 内部数组，零拷贝
+  const blocks = initRef.current.parser.allBlocks()
 
   const parse = useCallback(() => {
     const p = initRef.current.parser
-    setBlocks([])
-    setDirtyMap({})
     p.read(mdContent)
     prevContentRef.current = mdContent
   }, [mdContent])
@@ -100,12 +86,9 @@ export default function App() {
 
     const p = initRef.current.parser
     const newSegment = newLines.slice(startLine, Math.max(startLine, newEndLine) + 1).join('\n')
-    console.log("updateLine",startLine, endLine, newSegment, 'updateLine end')
+    console.log("updateLine", startLine, endLine, newSegment, 'updateLine end')
     p.updateLine(startLine, endLine, newSegment)
-
-    if (dirtyTimerRef.current) clearTimeout(dirtyTimerRef.current)
-    dirtyTimerRef.current = setTimeout(clearDirty, 5000)
-  }, [clearDirty])
+  }, [])
 
   const handleTextareaEvent = useCallback(() => {
     const ta = textareaRef.current
@@ -118,12 +101,12 @@ export default function App() {
       if (cursorLine >= b.lineStart && cursorLine <= b.lineEnd) return b
     }
     return null
-  }, [blocks, cursorLine])
+  }, [rev, cursorLine])
 
   const itemCount = blocks.length
-  const getItemSize = useCallback((i) => blocks[i] ? estimateHeight(blocks[i]) : 40, [blocks])
+  const getItemSize = useCallback((i) => blocks[i] ? estimateHeight(blocks[i]) : 40, [rev])
   const Row = useCallback(({ index, style, data }) => (
-    <BlockCard block={data.blocks[index]} dirty={data.dirtyMap[index] || 0} style={style} />
+    <BlockCard block={data.blocks[index]} style={style} />
   ), [])
 
   const BAR_H = 24, TOOLBAR_H = 42
@@ -154,7 +137,7 @@ export default function App() {
               <VariableSizeList ref={listRef}
                 height={listHeight} width="100%"
                 itemCount={itemCount} itemSize={getItemSize}
-                itemData={{ blocks, dirtyMap }}
+                itemData={{ blocks, rev }}
                 overscanCount={20}
               >{Row}</VariableSizeList>
             ) : (

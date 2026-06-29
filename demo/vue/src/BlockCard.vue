@@ -1,7 +1,6 @@
 <script setup>
-defineProps({
+const props = defineProps({
   block: Object,
-  dirty: { type: Number, default: 0 },
 })
 
 const TYPE_LABELS = {
@@ -11,15 +10,15 @@ const TYPE_LABELS = {
 </script>
 
 <template>
-  <div :class="['card', `card-${block.type}`, dirty === 2 ? 'dirty-lines' : dirty === 1 ? 'dirty-position' : '']">
+  <div :class="['card', `card-${block.type}`, (block.dirty ?? 0) === 2 ? 'dirty-lines' : (block.dirty ?? 0) === 1 ? 'dirty-position' : '']">
     <span class="badge">
       {{ TYPE_LABELS[block.type] }}{{ block.depth != null ? block.depth : '' }}
     </span>
     <div class="card-body">
       <div class="block-info">
         {{ block.index }} : {{ block.lineStart }} ~ {{ block.lineEnd }}
-        <span :class="['dirty-tag', dirty === 2 ? 'dirty-tag-lines' : dirty === 1 ? 'dirty-tag-pos' : '']">
-          dirty: {{ dirty }}
+        <span :class="['dirty-tag', (block.dirty ?? 0) === 2 ? 'dirty-tag-lines' : (block.dirty ?? 0) === 1 ? 'dirty-tag-pos' : '']">
+          dirty: {{ block.dirty ?? 0 }}
         </span>
       </div>
       <div class="lines">
