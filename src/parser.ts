@@ -10,16 +10,16 @@ interface FlushCtx {
 }
 
 export class Parser {
-  private _callbacks: BlockCallback[] = []
-  private _blocks: TypedBlock[] = []
-  private _buffer: TypedBlock[] = []
-  private _batchSizes: number[] = [400, 800, 1600, 3200]
+  private _callbacks: BlockCallback[] = []          // onUpdate 注册的回调（只保留最新一个）
+  private _blocks: TypedBlock[] = []                // 全部已完成解析的 block
+  private _buffer: TypedBlock[] = []                // 待 flush 的 block 缓冲，凑够 batchSize 后通知
+  private _batchSizes: number[] = [400, 800, 1600, 3200]  // 每批通知的 block 数量阶梯
 
-  private _currentBlock: RawSection | null = null
-  private _sectionStart = 0
-  private _inFence = false
-  private _htmlDepth = 0
-  private _globalLineNum = 0
+  private _currentBlock: RawSection | null = null   // 正在积累中、尚未结束的 section
+  private _sectionStart = 0                         // 当前 section 在文档中的起始行号
+  private _inFence = false                          // 是否在 code fence（``` 或 ~~~）内
+  private _htmlDepth = 0                            // HTML 标签嵌套深度，>0 表示在 HTML block 内
+  private _globalLineNum = 0                        // 已处理总行数（跨 chunk 累计，用于计算 lineStart）
 
   // ====== Public API ======
 
@@ -28,7 +28,7 @@ export class Parser {
   }
 
   onUpdate(callback: BlockCallback): void {
-    this._callbacks.push(callback)
+    this._callbacks = [callback]
   }
 
   allBlocks(): TypedBlock[] {
@@ -104,20 +104,20 @@ export class Parser {
   updateLine(startLine: number, endLine: number, newContent: string): void {
     for (const b of this._blocks) b.dirty = 0
 
-    const affected = this.findBlocks(startLine, endLine)
-    if (affected.length === 0) return
+    const affected   = this.findBlocks(startLine, endLine)
+    const firstBlock = affected[0] ?? null
+    const lastBlock  = affected[affected.length - 1] ?? null
+    const firstIdx   = firstBlock?.index ?? 0
 
-    const firstBlock = affected[0]
-    const lastBlock  = affected[affected.length - 1]
-    const firstIdx   = firstBlock.index
-
-    const prefixLines = firstBlock.lines.slice(0, startLine - firstBlock.lineStart)
-    const suffixLines = lastBlock.lines.slice(endLine - lastBlock.lineStart + 1)
+    const prefixLines = firstBlock ? firstBlock.lines.slice(0, startLine - firstBlock.lineStart) : []
+    const suffixLines = lastBlock  ? lastBlock.lines.slice(endLine - lastBlock.lineStart + 1)    : []
     const newLines    = newContent === '' ? [] : newContent.split('\n')
     const combined    = [...prefixLines, ...newLines, ...suffixLines]
 
-    const oldTotalLines = lastBlock.lineEnd - firstBlock.lineStart + 1
-    const sectionStart  = firstBlock.lineStart
+    if (affected.length === 0 && combined.length === 0) return
+
+    const oldTotalLines = firstBlock && lastBlock ? lastBlock.lineEnd - firstBlock.lineStart + 1 : 0
+    const sectionStart  = firstBlock ? firstBlock.lineStart : startLine
 
     const typed  = this._subdivide(combined, sectionStart)
     const merged = this._mergeEmptyParas(typed)
