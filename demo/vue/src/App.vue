@@ -1,10 +1,15 @@
 <script setup>
-import { shallowRef, triggerRef, ref, computed, onMounted } from 'vue'
+import { shallowRef, triggerRef, ref, computed } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { Parser, render_html, default_css } from 'mdparser'
+import { Parser, render_html } from 'mdparser'
+// import 'mdparser/light.css'
+// import 'mdparser/dark.css'
+import '../../../src/light.css'
+import '../../../src/dark.css'
 import BlockCard from './BlockCard.vue'
 import './App.css'
+// import './md-custom.css'
 import testMdRaw from '../../../mytest/test.md?raw'
 
 function cursorLineNumber(text, selectionStart) {
@@ -16,6 +21,7 @@ const p = new Parser()
 
 const mdContent  = ref(testMdRaw)
 const cursorLine = ref(0)
+const darkMode   = ref(false)
 
 // shallowRef 持有 parser 内部数组，零拷贝；triggerRef 强制通知 Vue 重渲染
 const blocks = shallowRef(p.allBlocks())
@@ -31,12 +37,6 @@ p.onUpdate((_changed, isEnd) => {
 })
 
 p.read(testMdRaw)
-
-onMounted(() => {
-  const style = document.createElement('style')
-  style.textContent = default_css()
-  document.head.appendChild(style)
-})
 
 function parse() {
   p.read(mdContent.value)
@@ -130,8 +130,9 @@ const matchedBlock = computed(() => {
       <div class="node-pane">
         <div class="toolbar">
           <span class="toolbar-title">预览</span>
+          <button class="btn-parse" @click="darkMode = !darkMode">{{ darkMode ? 'Light' : 'Dark' }}</button>
         </div>
-        <div class="preview-content md-preview" v-html="previewHtml" />
+        <div :class="['preview-content', 'md-preview', { dark: darkMode }]" v-html="previewHtml" />
       </div>
     </div>
     <div class="bottom-bar">

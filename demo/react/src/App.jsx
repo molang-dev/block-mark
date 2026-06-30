@@ -1,8 +1,11 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react'
 import { VariableSizeList } from 'react-window'
-import { Parser, render_html, default_css } from 'mdparser'
+import { Parser, render_html } from 'mdparser'
+import 'mdparser/light.css'
+import 'mdparser/dark.css'
 import BlockCard from './BlockCard.jsx'
 import './App.css'
+import './md-custom.css'
 import testMdRaw from '../../../mytest/test.md?raw'
 
 function loadMDFile(_path) {
@@ -44,6 +47,7 @@ export default function App() {
   const [mdContent, setMdContent] = useState(initRef.current.content)
   const [rev, setRev] = useState(0)
   const [cursorLine, setCursorLine] = useState(0)
+  const [darkMode, setDarkMode] = useState(false)
 
   // 每次 render 挂上最新的 rev setter（stable ref，无副作用）
   setRevRef.current = () => setRev(r => r + 1)
@@ -153,9 +157,11 @@ export default function App() {
         <div className="node-pane">
           <div className="toolbar">
             <span className="toolbar-title">预览</span>
+            <button className="btn-parse" onClick={() => setDarkMode(d => !d)}>
+              {darkMode ? 'Light' : 'Dark'}
+            </button>
           </div>
-          <style dangerouslySetInnerHTML={{ __html: default_css() }} />
-          <div className="preview-content md-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+          <div className={`preview-content md-preview${darkMode ? ' dark' : ''}`} dangerouslySetInnerHTML={{ __html: previewHtml }} />
         </div>
       </div>
       <div className="bottom-bar">

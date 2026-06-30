@@ -1,0 +1,7 @@
+/* CSS 文件方式：追加/补充默认样式 */
+.md-preview blockquote {
+  background: #f0f7ff;
+  border-radius: 0 4px 4px 0;
+}
+.md-preview h1::before { content: '# '; color: #0969da; opacity: 0.4; }
+.md-preview h2::before { content: '## '; color: #0969da; opacity: 0.4; }

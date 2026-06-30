@@ -1,0 +1,31 @@
+/* class-based: add .dark to the container for manual control */
+.md-preview.dark { color: #e6edf3; background: #0d1117; }
+.md-preview.dark h1, .md-preview.dark h2 { border-bottom-color: #21262d; }
+.md-preview.dark h6  { color: #8b949e; }
+.md-preview.dark a   { color: #58a6ff; }
+.md-preview.dark del { color: #8b949e; }
+.md-preview.dark code { background: #161b22; color: #e6edf3; }
+.md-preview.dark pre  { background: #161b22; }
+.md-preview.dark pre code { color: #e6edf3; }
+.md-preview.dark blockquote { border-left-color: #3d444d; color: #8b949e; }
+.md-preview.dark th, .md-preview.dark td { border-color: #30363d; }
+.md-preview.dark th { background: #161b22; }
+.md-preview.dark tr:nth-child(even) td { background: #161b22; }
+.md-preview.dark hr { border-top-color: #30363d; }
+
+/* auto: follows system preference */
+@media (prefers-color-scheme: dark) {
+  .md-preview { color: #e6edf3; background: #0d1117; }
+  .md-preview h1, .md-preview h2 { border-bottom-color: #21262d; }
+  .md-preview h6  { color: #8b949e; }
+  .md-preview a   { color: #58a6ff; }
+  .md-preview del { color: #8b949e; }
+  .md-preview code { background: #161b22; color: #e6edf3; }
+  .md-preview pre  { background: #161b22; }
+  .md-preview pre code { color: #e6edf3; }
+  .md-preview blockquote { border-left-color: #3d444d; color: #8b949e; }
+  .md-preview th, .md-preview td { border-color: #30363d; }
+  .md-preview th { background: #161b22; }
+  .md-preview tr:nth-child(even) td { background: #161b22; }
+  .md-preview hr { border-top-color: #30363d; }
+}
