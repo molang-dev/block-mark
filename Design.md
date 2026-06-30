@@ -326,3 +326,14 @@ npm test         # vitest run（41 个测试用例）
 - `render_html`：`Email` → href 加 `mailto:` 前缀；`URL` + `www.` 开头 → href 加 `http://` 前缀
 - `node2str` 输出 `linkType` 名称（如 `URL`、`Email`）
 - `LinkType` 从 `index.ts` 公开导出
+
+### 引用式链接（Reference Links）
+
+- `BlockType.Def`（=9）：`_subdivide` 识别 `[id]: url`，独立成块，`render_html` 返回 `''`
+- `Node.defId?: string`：Def 节点和 Link(Ref) 节点均携带定义 id（lowercase）
+- `ParseContext`：`{ defs, refs, blockIndex }`，贯穿 `parseBlock` / `parseInline` / `Scanner` 全链路
+- `Parser._defs`：`Map<string, { url, blockIndex }>`，全局定义表，key 大小写不敏感
+- `Parser._refs`：`Array<{ node, blockIndex }>`，所有引用节点索引
+- 三种引用形式：`[text][id]`（完整）、`[text][]`（折叠，id=text）、`[id]`（快捷）
+- 遇到 Def 块时立即遍历 `_refs` 补填 url，支持先用后定义，无需后置处理，不触发额外 `onUpdate`
+- `update()` 中：替换区块前捕获 oldDefs / 清理 _refs，re-parse 后对比新旧 def，受影响的引用节点直接更新 text 并标 dirty

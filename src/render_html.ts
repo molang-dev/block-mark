@@ -46,6 +46,8 @@ function renderNode(node: Node): string {
       return `<td>${kids(node)}</td>`
     case NodeType.Hr:
       return '<hr>'
+    case NodeType.Def:
+      return ''
     case NodeType.Link: {
       const raw = node.text ?? ''
       const href = node.linkType === LinkType.Email

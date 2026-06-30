@@ -1,4 +1,4 @@
-import { Node, NodeType, BlockType, TypedBlock, LinkType } from './types'
+import { Node, NodeType, BlockType, TypedBlock, LinkType, ParseContext } from './types'
 
 function n(type: NodeType, text?: string, children?: Node[], depth?: number, lang?: string): Node {
   const node: Node = { type }
@@ -9,12 +9,28 @@ function n(type: NodeType, text?: string, children?: Node[], depth?: number, lan
   return node
 }
 
-export function parseBlock(block: TypedBlock): Node[] {
+export function parseBlock(block: TypedBlock, ctx?: ParseContext): Node[] {
   switch (block.type) {
+    case BlockType.Def: {
+      const m = block.lines[0]?.match(/^\s*\[([^\]]+)\]:\s+(\S+)/)
+      if (m) {
+        const id = m[1].toLowerCase(), url = m[2]
+        if (ctx) {
+          ctx.defs.set(id, { url, blockIndex: ctx.blockIndex })
+          for (const ref of ctx.refs) {
+            if (ref.node.defId === id && !ref.node.text) ref.node.text = url
+          }
+        }
+        const nd = n(NodeType.Def, url)
+        nd.defId = id
+        return [nd]
+      }
+      return []
+    }
     case BlockType.Heading: {
       const lines = block.lines.slice()
       lines[0] = lines[0].replace(/^\s*#{1,6}\s/, '')
-      return [n(NodeType.Heading, '', parseInline(lines.join('\n')), block.depth ?? 1)]
+      return [n(NodeType.Heading, '', parseInline(lines.join('\n'), ctx), block.depth ?? 1)]
     }
     case BlockType.Hr:
       return [n(NodeType.Hr, '')]
@@ -33,11 +49,11 @@ export function parseBlock(block: TypedBlock): Node[] {
     case BlockType.Html:
       return [n(NodeType.HTML, block.lines.join('\n'))]
     case BlockType.Blockquote: {
-      return [parseBlockquote(block.lines.filter(l => l !== ''))]
+      return [parseBlockquote(block.lines.filter(l => l !== ''), ctx)]
     }
     case BlockType.List: {
       const lines = block.lines.filter(l => l !== '')
-      const { items } = buildList(lines, 0)
+      const { items } = buildList(lines, 0, ctx)
       return [n(NodeType.List, '', items)]
     }
     case BlockType.Table: {
@@ -45,17 +61,17 @@ export function parseBlock(block: TypedBlock): Node[] {
         .filter(l => l !== '' && !/^\s*\|[-:\s|]+\|\s*$/.test(l))
         .map(l => {
           const cells = l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|')
-            .map(cell => n(NodeType.TableCell, '', parseInline(cell.trim())))
+            .map(cell => n(NodeType.TableCell, '', parseInline(cell.trim(), ctx)))
           return n(NodeType.TableRow, '', cells)
         })
       return [n(NodeType.Table, '', rows)]
     }
     default:
-      return [n(NodeType.Paragraph, '', parseInline(block.lines.join('\n')))]
+      return [n(NodeType.Paragraph, '', parseInline(block.lines.join('\n'), ctx))]
   }
 }
 
-function parseBlockquote(lines: string[]): Node {
+function parseBlockquote(lines: string[], ctx?: ParseContext): Node {
   const stripped = lines.map(l => l.replace(/^\s*>\s?/, ''))
   const children: Node[] = []
   let i = 0
@@ -66,7 +82,7 @@ function parseBlockquote(lines: string[]): Node {
     if (/^\s*>/.test(line)) {
       const start = i
       while (i < stripped.length && /^\s*>/.test(stripped[i])) i++
-      children.push(parseBlockquote(stripped.slice(start, i)))
+      children.push(parseBlockquote(stripped.slice(start, i), ctx))
       continue
     }
 
@@ -102,7 +118,7 @@ function parseBlockquote(lines: string[]): Node {
         }
         break
       }
-      const { items } = buildList(listLines, 0)
+      const { items } = buildList(listLines, 0, ctx)
       children.push(n(NodeType.List, '', items))
       continue
     }
@@ -112,13 +128,13 @@ function parseBlockquote(lines: string[]): Node {
            !/^\s*>/.test(stripped[i]) &&
            !/^\s*(`{3,}|~{3,})/.test(stripped[i]) &&
            !/^\s*(?:[-*+]|\d+\.)\s/.test(stripped[i])) i++
-    if (i > start) children.push(...parseInline(stripped.slice(start, i).join('\n')))
+    if (i > start) children.push(...parseInline(stripped.slice(start, i).join('\n'), ctx))
   }
 
   return n(NodeType.Blockquote, '', children)
 }
 
-function buildList(lines: string[], start: number): { items: Node[]; end: number } {
+function buildList(lines: string[], start: number, ctx?: ParseContext): { items: Node[]; end: number } {
   const baseIndent = lines[start]?.match(/^(\s*)/)?.[1].length ?? 0
   const items: Node[] = []
   let i = start
@@ -130,14 +146,14 @@ function buildList(lines: string[], start: number): { items: Node[]; end: number
     if (indent < baseIndent) break
     if (indent > baseIndent) { i++; continue }
 
-    const inlineNodes = parseInline(m[2] ?? '')
+    const inlineNodes = parseInline(m[2] ?? '', ctx)
     i++
 
     let subList: Node | null = null
     if (i < lines.length) {
       const nm = lines[i].match(/^(\s*)(?:[-*+]|\d+\.)\s/)
       if (nm && nm[1].length > baseIndent) {
-        const res = buildList(lines, i)
+        const res = buildList(lines, i, ctx)
         subList = n(NodeType.List, '', res.items)
         i = res.end
       }
@@ -149,13 +165,13 @@ function buildList(lines: string[], start: number): { items: Node[]; end: number
   return { items, end: i }
 }
 
-export function parseInline(src: string): Node[] {
-  return mergeText(new Scanner(src).scan())
+export function parseInline(src: string, ctx?: ParseContext): Node[] {
+  return mergeText(new Scanner(src, ctx).scan())
 }
 
 class Scanner {
   private pos = 0
-  constructor(private src: string) {}
+  constructor(private src: string, private ctx?: ParseContext) {}
 
   scan(): Node[] {
     const nodes: Node[] = []
@@ -262,17 +278,40 @@ class Scanner {
     if (this.ch() !== '(') return n(NodeType.Text, `![${alt}]`)
     this.pos++
     const href = this.paren()
-    return n(NodeType.Image, href, parseInline(alt))
+    return n(NodeType.Image, href, parseInline(alt, this.ctx))
   }
 
   private link(): Node {
     this.pos++
     const label = this.bracket()
     if (label === null) return n(NodeType.Text, '[')
-    if (this.ch() !== '(') return n(NodeType.Text, `[${label}]`)
-    this.pos++
-    const href = this.paren()
-    const nd = n(NodeType.Link, href, parseInline(label)); nd.linkType = LinkType.URL; return nd
+
+    if (this.ch() === '(') {
+      this.pos++
+      const href = this.paren()
+      const nd = n(NodeType.Link, href, parseInline(label, this.ctx)); nd.linkType = LinkType.URL; return nd
+    }
+
+    if (this.ch() === '[') {
+      this.pos++
+      const id = this.bracket()
+      if (id === null) return n(NodeType.Text, `[${label}][`)
+      return this._makeRef(label, (id || label).toLowerCase())
+    }
+
+    return this._makeRef(label, label.toLowerCase())
+  }
+
+  private _makeRef(displayText: string, id: string): Node {
+    const nd = n(NodeType.Link, '', parseInline(displayText, this.ctx))
+    nd.linkType = LinkType.Ref
+    nd.defId = id
+    if (this.ctx) {
+      const def = this.ctx.defs.get(id)
+      if (def) nd.text = def.url
+      this.ctx.refs.push({ node: nd, blockIndex: this.ctx.blockIndex })
+    }
+    return nd
   }
 
   private bracket(): string | null {
@@ -340,7 +379,7 @@ class Scanner {
           this.ch(delim.length) !== delim[0]) {
         const inner = this.src.slice(start, this.pos)
         this.pos += delim.length
-        return parseInline(inner)
+        return parseInline(inner, this.ctx)
       }
       this.pos++
     }
@@ -355,7 +394,7 @@ class Scanner {
       if (this.src.slice(this.pos, this.pos + 2) === '~~') {
         const inner = this.src.slice(start, this.pos)
         this.pos += 2
-        return n(NodeType.Del, '', parseInline(inner))
+        return n(NodeType.Del, '', parseInline(inner, this.ctx))
       }
       this.pos++
     }
