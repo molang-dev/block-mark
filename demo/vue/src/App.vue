@@ -2,7 +2,7 @@
 import { shallowRef, triggerRef, ref, computed } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { Parser } from 'mdparser'
+import { Parser, render_html } from 'mdparser'
 import BlockCard from './BlockCard.vue'
 import './App.css'
 import testMdRaw from '../../../mytest/test.md?raw'
@@ -71,6 +71,10 @@ function handleCursor(e) {
   cursorLine.value = cursorLineNumber(e.target.value, e.target.selectionStart)
 }
 
+const previewHtml = computed(() =>
+  blocks.value.map(b => render_html(b.markdown)).join('')
+)
+
 const matchedBlock = computed(() => {
   for (const b of blocks.value) {
     if (cursorLine.value >= b.lineStart && cursorLine.value <= b.lineEnd) return b
@@ -116,6 +120,12 @@ const matchedBlock = computed(() => {
           </DynamicScroller>
           <div v-else class="placeholder">点击「解析」查看结果</div>
         </div>
+      </div>
+      <div class="node-pane">
+        <div class="toolbar">
+          <span class="toolbar-title">预览</span>
+        </div>
+        <div class="preview-content" v-html="previewHtml" />
       </div>
     </div>
     <div class="bottom-bar">

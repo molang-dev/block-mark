@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react'
 import { VariableSizeList } from 'react-window'
-import { Parser } from 'mdparser'
+import { Parser, render_html } from 'mdparser'
 import BlockCard from './BlockCard.jsx'
 import './App.css'
 import testMdRaw from '../../../mytest/test.md?raw'
@@ -95,6 +95,11 @@ export default function App() {
     if (ta) setCursorLine(cursorLineNumber(ta.value, ta.selectionStart))
   }, [])
 
+  const previewHtml = useMemo(() =>
+    blocks.map(b => render_html(b.markdown)).join(''),
+    [rev]
+  )
+
   const matchedBlock = useMemo(() => {
     if (blocks.length === 0) return null
     for (const b of blocks) {
@@ -144,6 +149,12 @@ export default function App() {
               <div className="placeholder">点击「解析」查看结果</div>
             )}
           </div>
+        </div>
+        <div className="node-pane">
+          <div className="toolbar">
+            <span className="toolbar-title">预览</span>
+          </div>
+          <div className="preview-content" dangerouslySetInnerHTML={{ __html: previewHtml }} />
         </div>
       </div>
       <div className="bottom-bar">
