@@ -1,8 +1,8 @@
 <script setup>
-import { shallowRef, triggerRef, ref, computed } from 'vue'
+import { shallowRef, triggerRef, ref, computed, onMounted } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { Parser, render_html } from 'mdparser'
+import { Parser, render_html, default_css } from 'mdparser'
 import BlockCard from './BlockCard.vue'
 import './App.css'
 import testMdRaw from '../../../mytest/test.md?raw'
@@ -31,6 +31,12 @@ p.onUpdate((_changed, isEnd) => {
 })
 
 p.read(testMdRaw)
+
+onMounted(() => {
+  const style = document.createElement('style')
+  style.textContent = default_css()
+  document.head.appendChild(style)
+})
 
 function parse() {
   p.read(mdContent.value)
@@ -125,7 +131,7 @@ const matchedBlock = computed(() => {
         <div class="toolbar">
           <span class="toolbar-title">预览</span>
         </div>
-        <div class="preview-content" v-html="previewHtml" />
+        <div class="preview-content md-preview" v-html="previewHtml" />
       </div>
     </div>
     <div class="bottom-bar">

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react'
 import { VariableSizeList } from 'react-window'
-import { Parser, render_html } from 'mdparser'
+import { Parser, render_html, default_css } from 'mdparser'
 import BlockCard from './BlockCard.jsx'
 import './App.css'
 import testMdRaw from '../../../mytest/test.md?raw'
@@ -154,7 +154,8 @@ export default function App() {
           <div className="toolbar">
             <span className="toolbar-title">预览</span>
           </div>
-          <div className="preview-content" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+          <style dangerouslySetInnerHTML={{ __html: default_css() }} />
+          <div className="preview-content md-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} />
         </div>
       </div>
       <div className="bottom-bar">
