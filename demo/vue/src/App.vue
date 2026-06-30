@@ -1,5 +1,5 @@
 <script setup>
-import { shallowRef, triggerRef, ref, computed } from 'vue'
+import { shallowRef, ref, computed } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import { Parser, render_html } from 'mdparser'
@@ -32,8 +32,7 @@ let prevContent = testMdRaw
 p.onUpdate((_changed, isEnd) => {
   console.log('onUpdate: ', _changed, 'onUpdate end')
   if (!isEnd) return
-  blocks.value = p.allBlocks()   // p.read() 会 reset 内部数组，需重新赋值
-  triggerRef(blocks)             // updateLine 是 in-place mutation，强制触发
+  blocks.value = [...p.allBlocks()]   // 浅拷贝：引用变化让 DynamicScroller 感知更新
 })
 
 p.read(testMdRaw)
@@ -68,7 +67,9 @@ function handleInput(e) {
   const endLine    = oldLines.length - 1 - tail
   const newEndLine = newLines.length - 1 - tail
 
-  const newSegment = newLines.slice(startLine, Math.max(startLine, newEndLine) + 1).join('\n')
+  const newSegment = newEndLine >= startLine
+    ? newLines.slice(startLine, newEndLine + 1).join('\n')
+    : ''
   console.log('updateLine', startLine, endLine, newSegment, 'updateLine end')
   p.updateLine(startLine, endLine, newSegment)
 }

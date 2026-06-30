@@ -89,7 +89,9 @@ export default function App() {
     const newEndLine = newLines.length - 1 - tail
 
     const p = initRef.current.parser
-    const newSegment = newLines.slice(startLine, Math.max(startLine, newEndLine) + 1).join('\n')
+    const newSegment = newEndLine >= startLine
+      ? newLines.slice(startLine, newEndLine + 1).join('\n')
+      : ''
     console.log("updateLine", startLine, endLine, newSegment, 'updateLine end')
     p.updateLine(startLine, endLine, newSegment)
   }, [])

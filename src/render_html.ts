@@ -9,7 +9,7 @@ function kids(node: Node): string {
 }
 
 function textOf(nodes: Node[]): string {
-  return nodes.map(n => n.value + textOf(n.children ?? [])).join('')
+  return nodes.map(n => (n.text ?? '') + textOf(n.children ?? [])).join('')
 }
 
 function renderNode(node: Node): string {
@@ -27,10 +27,10 @@ function renderNode(node: Node): string {
     case NodeType.Del:
       return `<del>${kids(node)}</del>`
     case NodeType.Codespan:
-      return `<code>${escape(node.value)}</code>`
+      return `<code>${escape(node.text ?? '')}</code>`
     case NodeType.Code: {
       const cls = node.lang ? ` class="language-${escape(node.lang)}"` : ''
-      return `<pre><code${cls}>${escape(node.value)}</code></pre>`
+      return `<pre><code${cls}>${escape(node.text ?? '')}</code></pre>`
     }
     case NodeType.Blockquote:
       return `<blockquote>${kids(node)}</blockquote>`
@@ -47,18 +47,18 @@ function renderNode(node: Node): string {
     case NodeType.Hr:
       return '<hr>'
     case NodeType.Link:
-      return `<a href="${escape(node.value)}">${kids(node) || escape(node.value)}</a>`
+      return `<a href="${escape(node.text ?? '')}">${kids(node) || escape(node.text ?? '')}</a>`
     case NodeType.Image:
-      return `<img src="${escape(node.value)}" alt="${escape(textOf(node.children ?? []))}">`
+      return `<img src="${escape(node.text ?? '')}" alt="${escape(textOf(node.children ?? []))}">`
     case NodeType.Br:
       return '<br>'
     case NodeType.Checkbox:
-      return `<input type="checkbox"${node.value === 'x' ? ' checked' : ''} disabled>`
+      return `<input type="checkbox"${node.text === 'x' ? ' checked' : ''} disabled>`
     case NodeType.HTML:
     case NodeType.Tag:
-      return node.value
+      return node.text ?? ''
     default:
-      return escape(node.value)
+      return escape(node.text ?? '')
   }
 }
 

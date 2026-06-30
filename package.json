@@ -11,7 +11,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./default.css": "./dist/default.css",
+    "./light.css":   "./dist/light.css",
+    "./dark.css":    "./dist/dark.css"
   },
   "files": [
     "dist"

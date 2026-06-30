@@ -1,16 +1,7 @@
 import React from 'react'
 import './BlockCard.css'
 
-const TYPE_LABELS = {
-  heading:    'H',
-  paragraph:  'P',
-  list:       'L',
-  code:       'C',
-  table:      'T',
-  blockquote: 'Q',
-  hr:         'R',
-  html:       '♢',
-}
+const TYPE_LABELS = { 1: 'H', 2: 'P', 3: 'L', 4: 'C', 5: 'T', 6: 'Q', 7: 'R', 8: '♢' }
 
 export default function BlockCard({ block, style }) {
   const dirty = block.dirty ?? 0

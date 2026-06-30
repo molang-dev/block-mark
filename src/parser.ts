@@ -109,7 +109,7 @@ export class Parser {
     const affected   = this.findBlocks(startLine, endLine)
     const firstBlock = affected[0] ?? null
     const lastBlock  = affected[affected.length - 1] ?? null
-    const firstIdx   = firstBlock?.index ?? 0
+    const firstIdx   = firstBlock?.index ?? this._blocks.length
 
     const prefixLines = firstBlock ? firstBlock.lines.slice(0, startLine - firstBlock.lineStart) : []
     const suffixLines = lastBlock  ? lastBlock.lines.slice(endLine - lastBlock.lineStart + 1)    : []
