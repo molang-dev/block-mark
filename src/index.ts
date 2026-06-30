@@ -1,2 +1,6 @@
 export { Parser } from './parser'
-export type { TypedBlock, BlockType, BlockCallback } from './types'
+export { parseInline } from './inline'
+export type { TypedBlock, BlockCallback } from './types'
+export { BlockType, NodeType } from './types'
+export type { Node } from './types'
+export { block2str, blocks2str } from './util'

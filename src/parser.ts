@@ -1,4 +1,6 @@
 import type { TypedBlock, BlockCallback } from './types'
+import { BlockType } from './types'
+import { parseBlock } from './inline'
 
 interface RawSection {
   lines: string[]
@@ -121,7 +123,10 @@ export class Parser {
 
     const typed  = this._subdivide(combined, sectionStart)
     const merged = this._mergeEmptyParas(typed)
-    for (const b of merged) b.dirty = 2
+    for (const b of merged) {
+      b.dirty = 2
+      b.markdown = parseBlock(b)
+    }
 
     this._blocks.splice(firstIdx, affected.length, ...merged)
 
@@ -221,6 +226,7 @@ export class Parser {
     block.index = this._blocks.length
     block.lineEnd = block.lineStart + block.lines.length - 1
     block.dirty = 0
+    block.markdown = parseBlock(block)
     this._blocks.push(block)
     this._buffer.push(block)
     this._tryFlush(ctx)
@@ -255,7 +261,7 @@ export class Parser {
   private _mergeEmptyParas(blocks: TypedBlock[]): TypedBlock[] {
     const result: TypedBlock[] = []
     for (const block of blocks) {
-      if (block.type === 'paragraph' && block.lines.length === 1 && block.lines[0] === '') {
+      if (block.type === BlockType.Paragraph && block.lines.length === 1 && block.lines[0] === '') {
         if (result.length > 0) {
           result[result.length - 1].lines.push('')
         } else {
@@ -297,7 +303,7 @@ export class Parser {
 
     if (rawLines.length > 0 && /^\s*#{1,6}\s/.test(rawLines[0])) {
       const depth = rawLines[0].match(/^\s*(#{1,6})/)![1].length
-      blocks.push({ type: 'heading', depth, lines: [rawLines[0]], index: 0, lineStart: sectionStart, lineEnd: 0 })
+      blocks.push({ type: BlockType.Heading, depth, lines: [rawLines[0]], index: 0, lineStart: sectionStart, lineEnd: 0, dirty: 2, markdown: [] })
       i = 1
     }
 
@@ -311,7 +317,7 @@ export class Parser {
         const tag = m[1]
         const selfClose = /^\s*<[a-zA-Z][a-zA-Z0-9-]*[^>]*\/>/.test(line)
         if (this._isVoid(tag) || selfClose) {
-          blocks.push({ type: 'html', lines: [line], index: 0, lineStart: blockStart, lineEnd: 0 })
+          blocks.push({ type: BlockType.Html, lines: [line], index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
           i++
           continue
         }
@@ -323,7 +329,7 @@ export class Parser {
           i++
           if (depth === 0) break
         }
-        blocks.push({ type: 'html', lines: htmlLines, index: 0, lineStart: blockStart, lineEnd: 0 })
+        blocks.push({ type: BlockType.Html, lines: htmlLines, index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
         continue
       }
 
@@ -338,13 +344,13 @@ export class Parser {
           }
           i++
         }
-        blocks.push({ type: 'code', lines: codeLines, index: 0, lineStart: blockStart, lineEnd: 0 })
+        blocks.push({ type: BlockType.Code, lines: codeLines, index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
         continue
       }
 
       // hr
       if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
-        blocks.push({ type: 'hr', lines: [line], index: 0, lineStart: blockStart, lineEnd: 0 })
+        blocks.push({ type: BlockType.Hr, lines: [line], index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
         i++
         continue
       }
@@ -356,7 +362,7 @@ export class Parser {
           listLines.push(rawLines[i])
           i++
         }
-        blocks.push({ type: 'list', lines: listLines, index: 0, lineStart: blockStart, lineEnd: 0 })
+        blocks.push({ type: BlockType.List, lines: listLines, index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
         continue
       }
 
@@ -367,7 +373,7 @@ export class Parser {
           bqLines.push(rawLines[i])
           i++
         }
-        blocks.push({ type: 'blockquote', lines: bqLines, index: 0, lineStart: blockStart, lineEnd: 0 })
+        blocks.push({ type: BlockType.Blockquote, lines: bqLines, index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
         continue
       }
 
@@ -378,12 +384,12 @@ export class Parser {
           tableLines.push(rawLines[i])
           i++
         }
-        blocks.push({ type: 'table', lines: tableLines, index: 0, lineStart: blockStart, lineEnd: 0 })
+        blocks.push({ type: BlockType.Table, lines: tableLines, index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
         continue
       }
 
       // paragraph
-      blocks.push({ type: 'paragraph', lines: [line], index: 0, lineStart: blockStart, lineEnd: 0 })
+      blocks.push({ type: BlockType.Paragraph, lines: [line], index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
       i++
     }
 
