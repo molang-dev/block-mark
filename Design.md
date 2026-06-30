@@ -292,3 +292,37 @@ npm test         # vitest run（41 个测试用例）
 - `handleTextareaChange` 改用首尾双向 diff（从头扫 + 从尾扫）精确算出 `startLine / endLine`，调用 `updateLine` 增量更新；跨 block 时自动 fallback 到 `p.read()`
 - 空行渲染为 `↵`（灰色，`user-select: none`）
 - dirty 高亮在最后一次编辑 5 秒后自动清除
+
+### 字符级增量更新 update()
+
+- `updateLine(startLine, endLine, newContent)` → **`update(row1, col1, row2, col2, content)`**，精确到字符坐标
+- `content = ''` 表示删除，无哨兵值
+- 内部将字符范围拼接为 `charPrefix + content + charSuffix`，split('\n') 得到 middleLines
+- 始终无条件扩展到 prevBlock + nextBlock，使相邻同类块（如两段 Table）在删除分隔 Heading 后能重新合并
+- Demo（React / Vue）改用字符级 diff：`charToRowCol(text, charPos)` 将字符偏移转换为 `{ row, col }`，调用 `p.update()`
+
+### update() prevBlock/nextBlock 脏标记优化
+
+- re-parse 后对比 `merged[0].lines` vs `prevSnap.lines`：相同则 `dirty=0`，复用旧 markdown，跳过重新解析
+- 对比 `merged[last].lines` vs `nextSnap.lines`：相同则 `dirty = lineDelta !== 0 ? 1 : 0`，复用旧 markdown
+- 两者均在 splice 前判断，避免对未变化的扩展块触发不必要的 UI 重渲染
+
+### Inline 解析增强
+
+- **嵌套列表**：递归 `buildList(lines, start)` 按缩进层级构建子列表，ListItem.children 中嵌套 List 节点
+- **嵌套引用块**：递归 `parseBlockquote(lines)` 剥一层 `>`，内层 `>` 再次递归，支持任意深度
+- **引用块内块级元素**：`parseBlockquote` 剥 `>` 后先识别 code fence → Code 节点、list → List 节点，再降级 `parseInline`
+
+### GFM Autolink 扩展
+
+- 裸 URL 自动识别：`http://`、`https://`、`ftp://` 开头 + `www.` 开头，末尾标点自动剥离
+- 裸 Email 自动识别：`word@domain.tld` 模式
+- `<url>` / `<email>` 角括号 autolink 保留并标注 linkType
+
+### LinkType 枚举
+
+- `types.ts` 新增 `enum LinkType { URL = 1, Email, Ref }`
+- `Node.linkType?: LinkType` — 所有 Link 节点携带类型标注
+- `render_html`：`Email` → href 加 `mailto:` 前缀；`URL` + `www.` 开头 → href 加 `http://` 前缀
+- `node2str` 输出 `linkType` 名称（如 `URL`、`Email`）
+- `LinkType` 从 `index.ts` 公开导出

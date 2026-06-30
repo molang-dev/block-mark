@@ -9,7 +9,7 @@ import '../../../src/light.css'
 import '../../../src/dark.css'
 import BlockCard from './BlockCard.vue'
 import './App.css'
-import './md-custom.css'
+// import './md-custom.css'
 import testMdRaw from '../../../mytest/test.md?raw'
 
 function cursorLineNumber(text, selectionStart) {

@@ -1,4 +1,4 @@
-import { Node, NodeType } from './types'
+import { Node, NodeType, LinkType } from './types'
 
 function escape(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -46,8 +46,15 @@ function renderNode(node: Node): string {
       return `<td>${kids(node)}</td>`
     case NodeType.Hr:
       return '<hr>'
-    case NodeType.Link:
-      return `<a href="${escape(node.text ?? '')}">${kids(node) || escape(node.text ?? '')}</a>`
+    case NodeType.Link: {
+      const raw = node.text ?? ''
+      const href = node.linkType === LinkType.Email
+        ? `mailto:${escape(raw)}`
+        : node.linkType === LinkType.URL && /^www\./i.test(raw)
+          ? `http://${escape(raw)}`
+          : escape(raw)
+      return `<a href="${href}">${kids(node) || escape(raw)}</a>`
+    }
     case NodeType.Image:
       return `<img src="${escape(node.text ?? '')}" alt="${escape(textOf(node.children ?? []))}">`
     case NodeType.Br:

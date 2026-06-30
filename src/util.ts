@@ -1,4 +1,4 @@
-import { BlockType, NodeType, TypedBlock, Node } from './types'
+import { BlockType, NodeType, LinkType, TypedBlock, Node } from './types'
 
 export function node2str(node: Node, indent = 0): string {
   const pad = '  '.repeat(indent)
@@ -8,8 +8,9 @@ export function node2str(node: Node, indent = 0): string {
     `${i1}typeName : ${NodeType[node.type]}`,
     `${i1}type     : ${node.type}`,
   ]
-  if (node.depth) lines.push(`${i1}depth    : ${node.depth}`)
-  if (node.lang)             lines.push(`${i1}lang     : ${node.lang}`)
+  if (node.depth)                    lines.push(`${i1}depth    : ${node.depth}`)
+  if (node.lang)                     lines.push(`${i1}lang     : ${node.lang}`)
+  if (node.linkType !== undefined)   lines.push(`${i1}linkType : ${LinkType[node.linkType]}`)
   if (node.text !== undefined) lines.push(`${i1}text     : '${node.text}'`)
   if (node.children?.length) {
     const kids = node.children.map(c => node2str(c, indent + 2)).join('\n')
