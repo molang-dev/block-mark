@@ -7,6 +7,7 @@ export enum BlockType {
   Blockquote,
   Hr,
   Html,
+  Def,
 }
 
 export enum NodeType {
@@ -50,6 +51,13 @@ export interface Node {
   depth?: number
   lang?: string
   linkType?: LinkType
+  defId?: string
+}
+
+export interface ParseContext {
+  defs: Map<string, { url: string, blockIndex: number }>
+  refs: Array<{ node: Node, blockIndex: number }>
+  blockIndex: number
 }
 
 export interface TypedBlock {

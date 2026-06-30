@@ -1,4 +1,4 @@
-import type { TypedBlock, BlockCallback } from './types'
+import type { TypedBlock, BlockCallback, ParseContext, Node } from './types'
 import { BlockType } from './types'
 import { parseBlock } from './inline'
 
@@ -22,6 +22,8 @@ export class Parser {
   private _blocks: TypedBlock[] = []                // 全部已完成解析的 block
   private _buffer: TypedBlock[] = []                // 待 flush 的 block 缓冲，凑够 batchSize 后通知
   private _batchSizes: number[] = [400, 800, 1600, 3200]  // 每批通知的 block 数量阶梯
+  private _defs: Map<string, { url: string, blockIndex: number }> = new Map()
+  private _refs: Array<{ node: Node, blockIndex: number }> = []
 
   private _currentBlock: RawSection | null = null   // 正在积累中、尚未结束的 section
   private _sectionStart = 0                         // 当前 section 在文档中的起始行号
@@ -155,11 +157,27 @@ export class Parser {
     const prevSnap = prevBlock ? { lines: prevBlock.lines.slice(), markdown: prevBlock.markdown } : null
     const nextSnap = nextBlock ? { lines: nextBlock.lines.slice(), markdown: nextBlock.markdown } : null
 
+    // Capture and remove old defs from blocks being replaced
+    const oldDefMap = new Map<string, string>()
+    for (const b of this._blocks.slice(firstIdx, firstIdx + numReplace)) {
+      if (b.type === BlockType.Def) {
+        const m = b.lines[0]?.match(/^\s*\[([^\]]+)\]:\s+(\S+)/)
+        if (m) oldDefMap.set(m[1].toLowerCase(), m[2])
+      }
+    }
+    for (const id of oldDefMap.keys()) this._defs.delete(id)
+
+    // Remove _refs entries for blocks being replaced; record count of old refs remaining
+    this._refs = this._refs.filter(r => r.blockIndex < firstIdx || r.blockIndex >= firstIdx + numReplace)
+    const refsCountAfterFilter = this._refs.length
+
     const typed  = this._subdivide(combined, sectionStart)
     const merged = this._mergeEmptyParas(typed)
-    for (const b of merged) {
+    for (let i = 0; i < merged.length; i++) {
+      const b = merged[i]
+      const parseCtx: ParseContext = { defs: this._defs, refs: this._refs, blockIndex: firstIdx + i }
       b.dirty    = 2
-      b.markdown = parseBlock(b)
+      b.markdown = parseBlock(b, parseCtx)
     }
 
     if (prevSnap && merged.length > 0 && linesEqual(merged[0].lines, prevSnap.lines)) {
@@ -171,6 +189,25 @@ export class Parser {
       if (linesEqual(last.lines, nextSnap.lines)) {
         last.dirty    = lineDelta !== 0 ? 1 : 0
         last.markdown = nextSnap.markdown
+      }
+    }
+
+    // Compute extra dirty blocks from def changes
+    const extraDirtySet = new Set<number>()
+    for (const [id, oldUrl] of oldDefMap) {
+      const newDef = this._defs.get(id)
+      if (!newDef || newDef.url !== oldUrl) {
+        const newUrl = newDef?.url ?? ''
+        for (const ref of this._refs) {
+          if (ref.node.defId === id) { ref.node.text = newUrl; extraDirtySet.add(ref.blockIndex) }
+        }
+      }
+    }
+    for (const [id, def] of this._defs) {
+      if (!oldDefMap.has(id)) {
+        for (const ref of this._refs) {
+          if (ref.node.defId === id && !ref.node.text) { ref.node.text = def.url; extraDirtySet.add(ref.blockIndex) }
+        }
       }
     }
 
@@ -188,6 +225,23 @@ export class Parser {
       const b = this._blocks[i]
       b.index  = i
       b.lineEnd = b.lineStart + b.lines.length - 1
+    }
+
+    // Shift old _refs block indices (new refs from re-parse already carry correct final indices)
+    const blockDelta = merged.length - numReplace
+    if (blockDelta !== 0) {
+      for (let j = 0; j < refsCountAfterFilter; j++) {
+        if (this._refs[j].blockIndex >= firstIdx + numReplace) {
+          this._refs[j].blockIndex += blockDelta
+        }
+      }
+    }
+
+    // Mark extra dirty blocks from def changes (old indices, shift if needed)
+    for (const idx of extraDirtySet) {
+      const shifted = idx >= firstIdx + numReplace ? idx + blockDelta : idx
+      const b = this._blocks[shifted]
+      if (b && (b.dirty ?? 0) === 0) b.dirty = 2
     }
 
     const allDirty = this._blocks.filter(b => (b.dirty ?? 0) > 0)
@@ -220,6 +274,8 @@ export class Parser {
     this._inFence = false
     this._htmlDepth = 0
     this._globalLineNum = 0
+    this._defs = new Map()
+    this._refs = []
   }
 
   private _notify(blocks: TypedBlock[], isEnd: boolean): void {
@@ -271,7 +327,8 @@ export class Parser {
     block.index = this._blocks.length
     block.lineEnd = block.lineStart + block.lines.length - 1
     block.dirty = 0
-    block.markdown = parseBlock(block)
+    const parseCtx: ParseContext = { defs: this._defs, refs: this._refs, blockIndex: block.index }
+    block.markdown = parseBlock(block, parseCtx)
     this._blocks.push(block)
     this._buffer.push(block)
     this._tryFlush(ctx)
@@ -404,6 +461,13 @@ export class Parser {
       // hr
       if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
         blocks.push({ type: BlockType.Hr, lines: [line], index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
+        i++
+        continue
+      }
+
+      // def [id]: url
+      if (/^\s*\[([^\]]+)\]:\s+\S+/.test(line)) {
+        blocks.push({ type: BlockType.Def, lines: [line], index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
         i++
         continue
       }
