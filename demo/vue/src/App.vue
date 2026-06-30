@@ -9,11 +9,17 @@ import '../../../src/light.css'
 import '../../../src/dark.css'
 import BlockCard from './BlockCard.vue'
 import './App.css'
-// import './md-custom.css'
+import './md-custom.css'
 import testMdRaw from '../../../mytest/test.md?raw'
 
 function cursorLineNumber(text, selectionStart) {
   return text.slice(0, selectionStart).split('\n').length - 1
+}
+
+function charToRowCol(text, charPos) {
+  const before = text.slice(0, charPos)
+  const lines = before.split('\n')
+  return { row: lines.length - 1, col: lines[lines.length - 1].length }
 }
 
 // 一次性初始化：<script setup> 顶层只跑一次，无需 useRef 守卫
@@ -43,35 +49,31 @@ function parse() {
 }
 
 function handleInput(e) {
+  console.log(e.target.value)
   const newContent = e.target.value
   mdContent.value  = newContent
 
-  const oldLines = prevContent.split('\n')
-  const newLines = newContent.split('\n')
+  const oldContent = prevContent
   prevContent = newContent
 
-  const minLen = Math.min(oldLines.length, newLines.length)
-  let sl = 0
-  while (sl < minLen && oldLines[sl] === newLines[sl]) sl++
+  const minLen = Math.min(oldContent.length, newContent.length)
+  let start = 0
+  while (start < minLen && oldContent[start] === newContent[start]) start++
 
-  if (sl === oldLines.length && sl === newLines.length) return
+  if (start === oldContent.length && start === newContent.length) return
 
-  const maxTail = Math.min(oldLines.length - sl, newLines.length - sl)
-  let tail = 0
-  while (tail < maxTail &&
-    oldLines[oldLines.length - 1 - tail] === newLines[newLines.length - 1 - tail]) {
-    tail++
+  let oldEnd = oldContent.length
+  let newEnd = newContent.length
+  while (oldEnd > start && newEnd > start &&
+    oldContent[oldEnd - 1] === newContent[newEnd - 1]) {
+    oldEnd--; newEnd--
   }
 
-  const startLine  = Math.min(sl, Math.max(0, oldLines.length - 1))
-  const endLine    = oldLines.length - 1 - tail
-  const newEndLine = newLines.length - 1 - tail
+  const pos1 = charToRowCol(oldContent, start)
+  const pos2 = charToRowCol(oldContent, oldEnd)
+  const content = newContent.slice(start, newEnd)
 
-  const newSegment = newEndLine >= startLine
-    ? newLines.slice(startLine, newEndLine + 1).join('\n')
-    : ''
-  console.log('updateLine', startLine, endLine, newSegment, 'updateLine end')
-  p.updateLine(startLine, endLine, newSegment)
+  p.update(pos1.row, pos1.col, pos2.row, pos2.col, content)
 }
 
 function handleCursor(e) {
