@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react'
 import { VariableSizeList } from 'react-window'
 import { Parser, render_html } from 'mdparser'
-import 'mdparser/light.css'
-import 'mdparser/dark.css'
+import '../../../src/light.css'
+import '../../../src/dark.css'
 import BlockCard from './BlockCard.jsx'
 import './App.css'
 import './md-custom.css'
@@ -19,6 +19,12 @@ function estimateHeight(block) {
 function cursorLineNumber(text, selectionStart) {
   const before = text.slice(0, selectionStart)
   return before.split('\n').length - 1
+}
+
+function charToRowCol(text, charPos) {
+  const before = text.slice(0, charPos)
+  const lines = before.split('\n')
+  return { row: lines.length - 1, col: lines[lines.length - 1].length }
 }
 
 export default function App() {
@@ -65,35 +71,28 @@ export default function App() {
     const newContent = e.target.value
     setMdContent(newContent)
 
-    const prevContent = prevContentRef.current
+    const oldContent = prevContentRef.current
     prevContentRef.current = newContent
 
-    const oldLines = prevContent.split('\n')
-    const newLines = newContent.split('\n')
+    const minLen = Math.min(oldContent.length, newContent.length)
+    let start = 0
+    while (start < minLen && oldContent[start] === newContent[start]) start++
 
-    const minLen = Math.min(oldLines.length, newLines.length)
-    let sl = 0
-    while (sl < minLen && oldLines[sl] === newLines[sl]) sl++
+    if (start === oldContent.length && start === newContent.length) return
 
-    if (sl === oldLines.length && sl === newLines.length) return
-
-    const maxTail = Math.min(oldLines.length - sl, newLines.length - sl)
-    let tail = 0
-    while (tail < maxTail &&
-      oldLines[oldLines.length - 1 - tail] === newLines[newLines.length - 1 - tail]) {
-      tail++
+    let oldEnd = oldContent.length
+    let newEnd = newContent.length
+    while (oldEnd > start && newEnd > start &&
+      oldContent[oldEnd - 1] === newContent[newEnd - 1]) {
+      oldEnd--; newEnd--
     }
 
-    const startLine = Math.min(sl, Math.max(0, oldLines.length - 1))
-    const endLine    = oldLines.length - 1 - tail
-    const newEndLine = newLines.length - 1 - tail
+    const pos1 = charToRowCol(oldContent, start)
+    const pos2 = charToRowCol(oldContent, oldEnd)
+    const content = newContent.slice(start, newEnd)
 
     const p = initRef.current.parser
-    const newSegment = newEndLine >= startLine
-      ? newLines.slice(startLine, newEndLine + 1).join('\n')
-      : ''
-    console.log("updateLine", startLine, endLine, newSegment, 'updateLine end')
-    p.updateLine(startLine, endLine, newSegment)
+    p.update(pos1.row, pos1.col, pos2.row, pos2.col, content)
   }, [])
 
   const handleTextareaEvent = useCallback(() => {

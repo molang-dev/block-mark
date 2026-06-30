@@ -103,32 +103,56 @@ export class Parser {
     return this._blocks.filter(b => b.lineEnd >= start && b.lineStart <= end)
   }
 
-  updateLine(startLine: number, endLine: number, newContent: string): void {
+  update(row1: number, col1: number, row2: number, col2: number, content: string): void {
+    if (row1 > row2 || (row1 === row2 && col1 > col2)) {
+      ;[row1, row2] = [row2, row1]
+      ;[col1, col2] = [col2, col1]
+    }
+
     for (const b of this._blocks) b.dirty = 0
 
-    const affected   = this.findBlocks(startLine, endLine)
+    const affected   = this.findBlocks(row1, row2)
     const firstBlock = affected[0] ?? null
     const lastBlock  = affected[affected.length - 1] ?? null
-    const firstIdx   = firstBlock?.index ?? this._blocks.length
 
-    const prefixLines = firstBlock ? firstBlock.lines.slice(0, startLine - firstBlock.lineStart) : []
-    const suffixLines = lastBlock  ? lastBlock.lines.slice(endLine - lastBlock.lineStart + 1)    : []
-    const newLines    = newContent === '' ? [] : newContent.split('\n')
-    const combined    = [...prefixLines, ...newLines, ...suffixLines]
+    const prevBlock = firstBlock && firstBlock.index > 0
+      ? this._blocks[firstBlock.index - 1]
+      : null
+    const nextBlock = lastBlock && lastBlock.index < this._blocks.length - 1
+      ? this._blocks[lastBlock.index + 1]
+      : null
 
-    if (affected.length === 0 && combined.length === 0) return
+    const expandFirst = prevBlock ?? firstBlock
+    const expandLast  = nextBlock ?? lastBlock
 
-    const oldTotalLines = firstBlock && lastBlock ? lastBlock.lineEnd - firstBlock.lineStart + 1 : 0
-    const sectionStart  = firstBlock ? firstBlock.lineStart : startLine
+    const firstIdx     = expandFirst?.index ?? this._blocks.length
+    const sectionStart = expandFirst?.lineStart ?? row1
+
+    const prefixLines   = firstBlock ? firstBlock.lines.slice(0, row1 - firstBlock.lineStart)  : []
+    const suffixLines   = lastBlock  ? lastBlock.lines.slice(row2 - lastBlock.lineStart + 1)   : []
+    const startLineText = firstBlock?.lines[row1 - firstBlock.lineStart] ?? ''
+    const endLineText   = lastBlock?.lines[row2 - lastBlock.lineStart]   ?? ''
+    const charPrefix    = startLineText.slice(0, col1)
+    const charSuffix    = endLineText.slice(col2)
+    const middleLines   = (charPrefix + content + charSuffix).split('\n')
+
+    const expandPrefix = prevBlock ? prevBlock.lines : []
+    const expandSuffix = nextBlock ? nextBlock.lines : []
+    const combined     = [...expandPrefix, ...prefixLines, ...middleLines, ...suffixLines, ...expandSuffix]
+
+    if (affected.length === 0 && !expandFirst && content === '') return
+
+    const oldTotalLines = expandFirst && expandLast ? expandLast.lineEnd - expandFirst.lineStart + 1 : 0
+    const numReplace    = expandFirst && expandLast ? expandLast.index - expandFirst.index + 1       : affected.length
 
     const typed  = this._subdivide(combined, sectionStart)
     const merged = this._mergeEmptyParas(typed)
     for (const b of merged) {
-      b.dirty = 2
+      b.dirty    = 2
       b.markdown = parseBlock(b)
     }
 
-    this._blocks.splice(firstIdx, affected.length, ...merged)
+    this._blocks.splice(firstIdx, numReplace, ...merged)
 
     const lineDelta = combined.length - oldTotalLines
     if (lineDelta !== 0) {
@@ -141,7 +165,7 @@ export class Parser {
 
     for (let i = firstIdx; i < this._blocks.length; i++) {
       const b = this._blocks[i]
-      b.index   = i
+      b.index  = i
       b.lineEnd = b.lineStart + b.lines.length - 1
     }
 
@@ -152,9 +176,9 @@ export class Parser {
     }
 
     let batchIdx = 0
-    let offset = 0
+    let offset   = 0
     while (offset < allDirty.length) {
-      const size = batchIdx < this._batchSizes.length
+      const size  = batchIdx < this._batchSizes.length
         ? this._batchSizes[batchIdx]
         : this._batchSizes[this._batchSizes.length - 1]
       const batch = allDirty.slice(offset, offset + size)
@@ -310,6 +334,14 @@ export class Parser {
     while (i < rawLines.length) {
       const line = rawLines[i]
       const blockStart = sectionStart + i
+
+      // heading in body (occurs during update when combined spans section boundaries)
+      if (/^\s*#{1,6}\s/.test(line)) {
+        const depth = line.match(/^\s*(#{1,6})/)![1].length
+        blocks.push({ type: BlockType.Heading, depth, lines: [line], index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
+        i++
+        continue
+      }
 
       // html block
       if (/^\s*<[a-zA-Z][a-zA-Z0-9-]*(\s|>|\/>)/.test(line) && !/^\s*<\//.test(line)) {
