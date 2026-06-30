@@ -1,7 +1,8 @@
 import { Node, NodeType, BlockType, TypedBlock } from './types'
 
-function n(type: NodeType, value: string, children?: Node[], depth?: number, lang?: string): Node {
-  const node: Node = { type, value }
+function n(type: NodeType, text?: string, children?: Node[], depth?: number, lang?: string): Node {
+  const node: Node = { type }
+  if (text)             node.text     = text
   if (children?.length) node.children = children
   if (depth)            node.depth    = depth
   if (lang)             node.lang     = lang
@@ -33,12 +34,13 @@ export function parseBlock(block: TypedBlock): Node[] {
     }
     case BlockType.List: {
       const items = block.lines
+        .filter(l => l !== '')
         .map(l => n(NodeType.ListItem, '', parseInline(l.replace(/^\s*(?:[-*+]|\d+\.)\s/, ''))))
       return [n(NodeType.List, '', items)]
     }
     case BlockType.Table: {
       const rows = block.lines
-        .filter(l => !/^\s*\|[-:\s|]+\|\s*$/.test(l))
+        .filter(l => l !== '' && !/^\s*\|[-:\s|]+\|\s*$/.test(l))
         .map(l => {
           const cells = l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|')
             .map(cell => n(NodeType.TableCell, '', parseInline(cell.trim())))
@@ -262,7 +264,7 @@ function mergeText(nodes: Node[]): Node[] {
   for (const node of nodes) {
     const prev = out[out.length - 1]
     if (node.type === NodeType.Text && prev?.type === NodeType.Text) {
-      prev.value += node.value
+      prev.text = (prev.text ?? '') + (node.text ?? '')
     } else {
       out.push(node)
     }

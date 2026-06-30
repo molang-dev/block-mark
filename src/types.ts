@@ -39,7 +39,7 @@ export enum NodeType {
 
 export interface Node {
   type: NodeType
-  value: string
+  text?: string
   children?: Node[]
   depth?: number
   lang?: string
