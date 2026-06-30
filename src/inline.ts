@@ -1,4 +1,4 @@
-import { Node, NodeType, BlockType, TypedBlock } from './types'
+import { Node, NodeType, BlockType, TypedBlock, LinkType } from './types'
 
 function n(type: NodeType, text?: string, children?: Node[], depth?: number, lang?: string): Node {
   const node: Node = { type }
@@ -21,21 +21,23 @@ export function parseBlock(block: TypedBlock): Node[] {
     case BlockType.Code: {
       const fence = block.lines[0] ?? ''
       const lang = fence.replace(/^\s*(`{3,}|~{3,})/, '').trim()
-      const last = block.lines[block.lines.length - 1]
-      const isClosedFence = /^\s*(`{3,}|~{3,})/.test(last)
-      const inner = block.lines.slice(1, isClosedFence ? -1 : undefined).join('\n')
+      let closingIdx = -1
+      for (let i = block.lines.length - 1; i > 0; i--) {
+        if (block.lines[i] === '') continue
+        if (/^\s*(`{3,}|~{3,})/.test(block.lines[i])) closingIdx = i
+        break
+      }
+      const inner = block.lines.slice(1, closingIdx > 0 ? closingIdx : undefined).join('\n')
       return [n(NodeType.Code, inner, undefined, undefined, lang || undefined)]
     }
     case BlockType.Html:
       return [n(NodeType.HTML, block.lines.join('\n'))]
     case BlockType.Blockquote: {
-      const text = block.lines.map(l => l.replace(/^\s*>\s?/, '')).join('\n')
-      return [n(NodeType.Blockquote, '', parseInline(text))]
+      return [parseBlockquote(block.lines.filter(l => l !== ''))]
     }
     case BlockType.List: {
-      const items = block.lines
-        .filter(l => l !== '')
-        .map(l => n(NodeType.ListItem, '', parseInline(l.replace(/^\s*(?:[-*+]|\d+\.)\s/, ''))))
+      const lines = block.lines.filter(l => l !== '')
+      const { items } = buildList(lines, 0)
       return [n(NodeType.List, '', items)]
     }
     case BlockType.Table: {
@@ -51,6 +53,100 @@ export function parseBlock(block: TypedBlock): Node[] {
     default:
       return [n(NodeType.Paragraph, '', parseInline(block.lines.join('\n')))]
   }
+}
+
+function parseBlockquote(lines: string[]): Node {
+  const stripped = lines.map(l => l.replace(/^\s*>\s?/, ''))
+  const children: Node[] = []
+  let i = 0
+
+  while (i < stripped.length) {
+    const line = stripped[i]
+
+    if (/^\s*>/.test(line)) {
+      const start = i
+      while (i < stripped.length && /^\s*>/.test(stripped[i])) i++
+      children.push(parseBlockquote(stripped.slice(start, i)))
+      continue
+    }
+
+    if (/^\s*(`{3,}|~{3,})/.test(line)) {
+      const fenceLines: string[] = [stripped[i++]]
+      while (i < stripped.length) {
+        const l = stripped[i++]
+        fenceLines.push(l)
+        if (/^\s*(`{3,}|~{3,})/.test(l)) break
+      }
+      const fence = fenceLines[0]
+      const lang = fence.replace(/^\s*(`{3,}|~{3,})/, '').trim()
+      let closingIdx = -1
+      for (let j = fenceLines.length - 1; j > 0; j--) {
+        if (fenceLines[j] === '') continue
+        if (/^\s*(`{3,}|~{3,})/.test(fenceLines[j])) { closingIdx = j; break }
+        break
+      }
+      const inner = fenceLines.slice(1, closingIdx > 0 ? closingIdx : undefined).join('\n')
+      children.push(n(NodeType.Code, inner, undefined, undefined, lang || undefined))
+      continue
+    }
+
+    if (/^\s*(?:[-*+]|\d+\.)\s/.test(line)) {
+      const baseIndent = line.match(/^(\s*)/)?.[1].length ?? 0
+      const listLines: string[] = []
+      while (i < stripped.length) {
+        const l = stripped[i]
+        if (l === '') break
+        const thisIndent = l.match(/^(\s*)/)?.[1].length ?? 0
+        if (thisIndent > baseIndent || /^\s*(?:[-*+]|\d+\.)\s/.test(l)) {
+          listLines.push(l); i++; continue
+        }
+        break
+      }
+      const { items } = buildList(listLines, 0)
+      children.push(n(NodeType.List, '', items))
+      continue
+    }
+
+    const start = i
+    while (i < stripped.length &&
+           !/^\s*>/.test(stripped[i]) &&
+           !/^\s*(`{3,}|~{3,})/.test(stripped[i]) &&
+           !/^\s*(?:[-*+]|\d+\.)\s/.test(stripped[i])) i++
+    if (i > start) children.push(...parseInline(stripped.slice(start, i).join('\n')))
+  }
+
+  return n(NodeType.Blockquote, '', children)
+}
+
+function buildList(lines: string[], start: number): { items: Node[]; end: number } {
+  const baseIndent = lines[start]?.match(/^(\s*)/)?.[1].length ?? 0
+  const items: Node[] = []
+  let i = start
+
+  while (i < lines.length) {
+    const m = lines[i].match(/^(\s*)(?:[-*+]|\d+\.)\s(.*)/)
+    if (!m) { i++; continue }
+    const indent = m[1].length
+    if (indent < baseIndent) break
+    if (indent > baseIndent) { i++; continue }
+
+    const inlineNodes = parseInline(m[2] ?? '')
+    i++
+
+    let subList: Node | null = null
+    if (i < lines.length) {
+      const nm = lines[i].match(/^(\s*)(?:[-*+]|\d+\.)\s/)
+      if (nm && nm[1].length > baseIndent) {
+        const res = buildList(lines, i)
+        subList = n(NodeType.List, '', res.items)
+        i = res.end
+      }
+    }
+
+    items.push(n(NodeType.ListItem, '', subList ? [...inlineNodes, subList] : inlineNodes))
+  }
+
+  return { items, end: i }
 }
 
 export function parseInline(src: string): Node[] {
@@ -87,6 +183,9 @@ class Scanner {
     if (c === '~' && this.ch(1) === '~') return this.del()
     if (c === '&')                       return this.entity()
     if (c === '\n')                      { this.pos++; return n(NodeType.Br, '') }
+    const rest = this.src.slice(this.pos)
+    if (/^(?:https?|ftp):\/\//.test(rest) || /^www\.[a-zA-Z]/.test(rest)) return this.autolink()
+    if (/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/.test(rest))  return this.autolink()
     return this.text()
   }
 
@@ -128,12 +227,32 @@ class Scanner {
     const rest = this.src.slice(this.pos)
     let m: RegExpMatchArray | null
     m = rest.match(/^<([a-zA-Z][a-zA-Z0-9+\-.]{1,31}:\/\/[^\s<>]*)>/)
-    if (m) { this.pos += m[0].length; return n(NodeType.Link, m[1]) }
+    if (m) { this.pos += m[0].length; const nd = n(NodeType.Link, m[1]); nd.linkType = LinkType.URL;   return nd }
     m = rest.match(/^<([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})>/)
-    if (m) { this.pos += m[0].length; return n(NodeType.Link, m[1]) }
+    if (m) { this.pos += m[0].length; const nd = n(NodeType.Link, m[1]); nd.linkType = LinkType.Email; return nd }
     m = rest.match(/^<\/?[a-zA-Z][a-zA-Z0-9\-]*(?:\s[^>]*)?\s*\/?>/)
     if (m) { this.pos += m[0].length; return n(NodeType.Tag, m[0]) }
     return n(NodeType.Text, this.eat())
+  }
+
+  private autolink(): Node {
+    const rest = this.src.slice(this.pos)
+    let m: RegExpMatchArray | null
+    if ((m = rest.match(/^(?:https?|ftp):\/\/[^\s<>]*/))) {
+      const url = m[0].replace(/[.,:;!?)'"]*$/, '')
+      this.pos += url.length
+      const nd = n(NodeType.Link, url); nd.linkType = LinkType.URL; return nd
+    }
+    if ((m = rest.match(/^www\.[^\s<>]*/))) {
+      const url = m[0].replace(/[.,:;!?)'"]*$/, '')
+      this.pos += url.length
+      const nd = n(NodeType.Link, url); nd.linkType = LinkType.URL; return nd
+    }
+    if ((m = rest.match(/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/))) {
+      this.pos += m[0].length
+      const nd = n(NodeType.Link, m[0]); nd.linkType = LinkType.Email; return nd
+    }
+    return this.text()
   }
 
   private image(): Node {
@@ -153,7 +272,7 @@ class Scanner {
     if (this.ch() !== '(') return n(NodeType.Text, `[${label}]`)
     this.pos++
     const href = this.paren()
-    return n(NodeType.Link, href, parseInline(label))
+    const nd = n(NodeType.Link, href, parseInline(label)); nd.linkType = LinkType.URL; return nd
   }
 
   private bracket(): string | null {

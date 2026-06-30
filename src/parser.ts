@@ -6,6 +6,12 @@ interface RawSection {
   lines: string[]
 }
 
+function linesEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+
 interface FlushCtx {
   batchIdx: number
   endSent: boolean
@@ -144,6 +150,10 @@ export class Parser {
 
     const oldTotalLines = expandFirst && expandLast ? expandLast.lineEnd - expandFirst.lineStart + 1 : 0
     const numReplace    = expandFirst && expandLast ? expandLast.index - expandFirst.index + 1       : affected.length
+    const lineDelta     = combined.length - oldTotalLines
+
+    const prevSnap = prevBlock ? { lines: prevBlock.lines.slice(), markdown: prevBlock.markdown } : null
+    const nextSnap = nextBlock ? { lines: nextBlock.lines.slice(), markdown: nextBlock.markdown } : null
 
     const typed  = this._subdivide(combined, sectionStart)
     const merged = this._mergeEmptyParas(typed)
@@ -152,9 +162,20 @@ export class Parser {
       b.markdown = parseBlock(b)
     }
 
+    if (prevSnap && merged.length > 0 && linesEqual(merged[0].lines, prevSnap.lines)) {
+      merged[0].dirty    = 0
+      merged[0].markdown = prevSnap.markdown
+    }
+    if (nextSnap && merged.length > 0) {
+      const last = merged[merged.length - 1]
+      if (linesEqual(last.lines, nextSnap.lines)) {
+        last.dirty    = lineDelta !== 0 ? 1 : 0
+        last.markdown = nextSnap.markdown
+      }
+    }
+
     this._blocks.splice(firstIdx, numReplace, ...merged)
 
-    const lineDelta = combined.length - oldTotalLines
     if (lineDelta !== 0) {
       for (let i = firstIdx + merged.length; i < this._blocks.length; i++) {
         this._blocks[i].lineStart += lineDelta

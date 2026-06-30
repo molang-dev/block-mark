@@ -37,12 +37,19 @@ export enum NodeType {
   Text,
 }
 
+export enum LinkType {
+  URL   = 1,
+  Email,
+  Ref,
+}
+
 export interface Node {
   type: NodeType
   text?: string
   children?: Node[]
   depth?: number
   lang?: string
+  linkType?: LinkType
 }
 
 export interface TypedBlock {

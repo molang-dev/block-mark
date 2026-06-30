@@ -1,7 +1,7 @@
 export { Parser } from './parser'
 export { parseInline } from './inline'
 export type { TypedBlock, BlockCallback } from './types'
-export { BlockType, NodeType } from './types'
+export { BlockType, NodeType, LinkType } from './types'
 export type { Node } from './types'
 export { block2str, blocks2str } from './util'
 export { render_html } from './render_html'
