@@ -157,13 +157,13 @@ describe('Parser', () => {
 
   // ============================================================
   it('前导空白：heading / fence / hr / list / blockquote / table', () => {
-    const blocks = collect('  ## 带空白的标题\n    - 带空白的列表\n  > 带空白的引用\n   | a | b |\n  ---\n')
+    const blocks = collect('  ## 带空白的标题\n  - 带空白的列表\n  > 带空白的引用\n   | a | b |\n  ---\n')
     expect(blocks[0].type).toBe(BlockType.Heading)
     expect(blocks[0].depth).toBe(2)
 
     const list = blocks.find(b => b.type === BlockType.List)
     expect(list).toBeTruthy()
-    expect(list!.lines).toEqual(['    - 带空白的列表'])
+    expect(list!.lines).toEqual(['  - 带空白的列表'])
 
     const bq = blocks.find(b => b.type === BlockType.Blockquote)
     expect(bq).toBeTruthy()

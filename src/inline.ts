@@ -19,6 +19,9 @@ export function parseBlock(block: TypedBlock, ctx?: ParseContext): Node[] {
         const text = [m[2], ...rest].join('\n').trim()
         if (ctx) {
           ctx.defs.set(id, { url: text, blockIndex: ctx.blockIndex })
+          for (const ref of ctx.refs) {
+            if (ref.node.defId === id) ref.node.url = text
+          }
         }
         const nd = n(NodeType.Def, text)
         nd.defId = id
@@ -51,9 +54,8 @@ export function parseBlock(block: TypedBlock, ctx?: ParseContext): Node[] {
       return [parseBlockquote(block.lines.filter(l => l !== ''), ctx)]
     }
     case BlockType.List: {
-      const lines = block.lines.filter(l => l !== '')
-      const { items } = buildList(lines, 0, ctx)
-      return [n(NodeType.List, '', items)]
+      const { node } = buildList(block.lines, 0, ctx)
+      return [node]
     }
     case BlockType.Table: {
       const rows = block.lines
@@ -105,20 +107,25 @@ function parseBlockquote(lines: string[], ctx?: ParseContext): Node {
       continue
     }
 
-    if (/^\s*(?:[-*+]|\d+\.)\s/.test(line)) {
-      const baseIndent = line.match(/^(\s*)/)?.[1].length ?? 0
+    if (parseMarker(line)) {
       const listLines: string[] = []
+      let blankBuf: string[] = []
+      let blankCount = 0
       while (i < stripped.length) {
         const l = stripped[i]
-        if (l === '') break
-        const thisIndent = l.match(/^(\s*)/)?.[1].length ?? 0
-        if (thisIndent > baseIndent || /^\s*(?:[-*+]|\d+\.)\s/.test(l)) {
-          listLines.push(l); i++; continue
+        if (l === '') {
+          blankCount++; if (blankCount >= 2) break
+          blankBuf.push(l); i++; continue
         }
-        break
+        blankCount = 0
+        if (/^\s*>\s?/.test(l) || /^\s*#{1,6}\s/.test(l)) break
+        const leading = countLeading(l)
+        if (leading === 0 && !parseMarker(l)) break
+        listLines.push(...blankBuf); blankBuf = []
+        listLines.push(l); i++
       }
-      const { items } = buildList(listLines, 0, ctx)
-      children.push(n(NodeType.List, '', items))
+      const { node } = buildList(listLines, 0, ctx)
+      children.push(node)
       continue
     }
 
@@ -126,42 +133,113 @@ function parseBlockquote(lines: string[], ctx?: ParseContext): Node {
     while (i < stripped.length &&
            !/^\s*>/.test(stripped[i]) &&
            !/^\s*(`{3,}|~{3,})/.test(stripped[i]) &&
-           !/^\s*(?:[-*+]|\d+\.)\s/.test(stripped[i])) i++
+           !parseMarker(stripped[i])) i++
     if (i > start) children.push(...parseInline(stripped.slice(start, i).join('\n'), ctx))
   }
 
   return n(NodeType.Blockquote, '', children)
 }
 
-function buildList(lines: string[], start: number, ctx?: ParseContext, minIndent = 0): { items: Node[]; end: number } {
-  const maxTopLevel = minIndent + 4
+function countLeading(line: string): number {
+  let i = 0
+  while (i < line.length && line[i] === ' ') i++
+  return i
+}
+
+function parseMarker(line: string): { W: number; firstContent: string } | null {
+  const bm = line.match(/^( {0,3})([-*+])( +)(.*)$/)
+  if (bm) {
+    const col = bm[1].length, spaces = bm[3].length
+    const eff = spaces >= 5 ? 1 : spaces
+    const W = col + 1 + eff
+    const firstContent = spaces >= 5 ? ' '.repeat(spaces - 1) + bm[4] : bm[4]
+    return { W, firstContent }
+  }
+  const om = line.match(/^( {0,3})(\d{1,9}[.)])( +)(.*)$/)
+  if (om) {
+    const col = om[1].length, mlen = om[2].length, spaces = om[3].length
+    const eff = spaces >= 5 ? 1 : spaces
+    const W = col + mlen + eff
+    const firstContent = spaces >= 5 ? ' '.repeat(spaces - 1) + om[4] : om[4]
+    return { W, firstContent }
+  }
+  return null
+}
+
+function parseItemContent(lines: string[], ctx?: ParseContext): Node[] {
+  const nodes: Node[] = []
+  let i = 0
+  while (i < lines.length) {
+    if (lines[i] === '') { i++; continue }
+    if (parseMarker(lines[i])) {
+      const { node, end } = buildList(lines, i, ctx)
+      nodes.push(node)
+      i = end
+      continue
+    }
+    const paraLines: string[] = []
+    while (i < lines.length && lines[i] !== '' && !parseMarker(lines[i])) {
+      paraLines.push(lines[i])
+      i++
+    }
+    if (paraLines.length > 0)
+      nodes.push(n(NodeType.Paragraph, '', parseInline(paraLines.join('\n'), ctx)))
+    if (i < lines.length && lines[i] === '') i++
+  }
+  return nodes
+}
+
+function buildList(lines: string[], start: number, ctx?: ParseContext): { node: Node; end: number } {
   const items: Node[] = []
+  let loose = false
   let i = start
+  let prevItemEndedWithBlank = false
 
   while (i < lines.length) {
-    const m = lines[i].match(/^(\s*)(?:[-*+]|\d+\.)\s(.*)/)
-    if (!m) { i++; continue }
-    const indent = m[1].length
-    if (indent < minIndent) break
-    if (indent >= maxTopLevel) { i++; continue }
+    const line = lines[i]
+    if (line === '') {
+      if (items.length > 0) prevItemEndedWithBlank = true
+      i++; continue
+    }
 
-    const inlineNodes = parseInline(m[2] ?? '', ctx)
+    const marker = parseMarker(line)
+    if (!marker) break
+
+    if (prevItemEndedWithBlank) loose = true
+    prevItemEndedWithBlank = false
+
+    const { W, firstContent } = marker
+    const contentLines: string[] = [firstContent]
     i++
+    let itemEndedWithBlank = false
 
-    let subList: Node | null = null
-    if (i < lines.length) {
-      const nm = lines[i].match(/^(\s*)(?:[-*+]|\d+\.)\s/)
-      if (nm && nm[1].length >= maxTopLevel) {
-        const res = buildList(lines, i, ctx, maxTopLevel)
-        subList = n(NodeType.List, '', res.items)
-        i = res.end
+    while (i < lines.length) {
+      const l = lines[i]
+      if (l === '') {
+        itemEndedWithBlank = true
+        contentLines.push('')
+        i++; continue
+      }
+      const indent = countLeading(l)
+      if (indent >= W) {
+        if (itemEndedWithBlank) loose = true
+        contentLines.push(l.slice(W))
+        itemEndedWithBlank = false
+        i++
+      } else {
+        break
       }
     }
 
-    items.push(n(NodeType.ListItem, '', subList ? [...inlineNodes, subList] : inlineNodes))
+    if (itemEndedWithBlank) prevItemEndedWithBlank = true
+    while (contentLines.length > 0 && contentLines[contentLines.length - 1] === '') contentLines.pop()
+
+    items.push(n(NodeType.ListItem, '', parseItemContent(contentLines, ctx)))
   }
 
-  return { items, end: i }
+  const listNode = n(NodeType.List, '', items)
+  if (loose) listNode.loose = true
+  return { node: listNode, end: i }
 }
 
 export function parseInline(src: string, ctx?: ParseContext): Node[] {
@@ -200,7 +278,7 @@ class Scanner {
     if (c === '\n')                      { this.pos++; return n(NodeType.Br, '') }
     const rest = this.src.slice(this.pos)
     if (/^(?:https?|ftp):\/\//.test(rest) || /^www\.[a-zA-Z]/.test(rest)) return this.autolink()
-    if (/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/.test(rest))  return this.autolink()
+    if (/^[a-zA-Z0-9][a-zA-Z0-9._%+\-]*@[a-zA-Z0-9]/.test(rest))         return this.autolink()
     return this.text()
   }
 
@@ -263,7 +341,8 @@ class Scanner {
       this.pos += url.length
       const nd = n(NodeType.Link, url); nd.linkType = LinkType.URL; return nd
     }
-    if ((m = rest.match(/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/))) {
+    const EMAIL = /^[a-zA-Z0-9](?:[a-zA-Z0-9._%+\-]*[a-zA-Z0-9])?@[a-zA-Z0-9](?:[a-zA-Z0-9\-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,6}/
+    if ((m = rest.match(EMAIL))) {
       this.pos += m[0].length
       const nd = n(NodeType.Link, m[0]); nd.linkType = LinkType.Email; return nd
     }
@@ -288,29 +367,32 @@ class Scanner {
     if (this.ch() === '(') {
       this.pos++
       const href = this.paren()
-      const nd = n(NodeType.Link, href, parseInline(label, this.ctx)); nd.linkType = LinkType.URL; return nd
+      const nd = n(NodeType.Link, undefined, parseInline(label, this.ctx))
+      nd.url = href
+      return nd
     }
 
     if (this.ch() === '[') {
       this.pos++
       const id = this.bracket()
       if (id === null) return n(NodeType.Text, `[${label}][`)
-      return this._makeRef(label, (id || label).toLowerCase())
+      return this._makeLinkRef(label, (id || label).toLowerCase())
     }
 
-    return this._makeRef(label, label.toLowerCase())
+    return this._makeLinkRef(label, label.toLowerCase())
   }
 
-  private _makeRef(displayText: string, id: string): Node {
-    const isSup = id.startsWith('^')
-    const nd = n(NodeType.Link, isSup ? '[' + id.slice(1) + ']' : displayText)
-    nd.linkType = isSup ? LinkType.Sup : LinkType.Ref
+  private _makeLinkRef(displayText: string, id: string): Node {
+    if (id.startsWith('^')) {
+      const nd = n(NodeType.Ref, '[' + id.slice(1) + ']')
+      nd.defId = id
+      return nd
+    }
+    const nd = n(NodeType.LinkRef, undefined, parseInline(displayText, this.ctx))
     nd.defId = id
     if (this.ctx) {
-      if (!isSup) {
-        const def = this.ctx.defs.get(id)
-        if (def) nd.href = def.url
-      }
+      const def = this.ctx.defs.get(id)
+      if (def) nd.url = def.url
       this.ctx.refs.push({ node: nd, blockIndex: this.ctx.blockIndex })
     }
     return nd

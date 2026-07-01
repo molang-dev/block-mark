@@ -36,13 +36,13 @@ export enum NodeType {
   TableRow,
   Tag,
   Text,
+  LinkRef,
+  Ref,
 }
 
 export enum LinkType {
   URL   = 1,
   Email,
-  Ref,
-  Sup,
 }
 
 export interface Node {
@@ -53,7 +53,8 @@ export interface Node {
   lang?: string
   linkType?: LinkType
   defId?: string
-  href?: string
+  url?: string
+  loose?: boolean
 }
 
 export interface ParseContext {
