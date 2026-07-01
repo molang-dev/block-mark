@@ -18,7 +18,7 @@ export function node2str(node: Node, indent = 0): string {
   if (node.lang)                     lines.push(`${i1}lang     : ${node.lang}`)
   if (node.linkType !== undefined)   lines.push(`${i1}linkType : ${LinkType[node.linkType]}`)
   if (node.defId)                    lines.push(`${i1}defId    : '${node.defId}'`)
-  if (node.href !== undefined)       lines.push(`${i1}href     : '${node.href}'`)
+  if (node.url !== undefined)        lines.push(`${i1}url      : '${node.url}'`)
   if (node.text !== undefined)       lines.push(`${i1}text     : '${escapeText(node.text)}'`)
   if (node.children?.length) {
     const kids = node.children.map(c => node2str(c, indent + 2)).join('\n')
