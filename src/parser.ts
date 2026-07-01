@@ -197,16 +197,16 @@ export class Parser {
     for (const [id, oldUrl] of oldDefMap) {
       const newDef = this._defs.get(id)
       if (!newDef || newDef.url !== oldUrl) {
-        const newUrl = newDef?.url ?? ''
+        const newUrl = newDef?.url
         for (const ref of this._refs) {
-          if (ref.node.defId === id) { extraDirtySet.add(ref.blockIndex) }
+          if (ref.node.defId === id) { ref.node.url = newUrl; extraDirtySet.add(ref.blockIndex) }
         }
       }
     }
     for (const [id, def] of this._defs) {
       if (!oldDefMap.has(id)) {
         for (const ref of this._refs) {
-          if (ref.node.defId === id) { extraDirtySet.add(ref.blockIndex) }
+          if (ref.node.defId === id) { ref.node.url = def.url; extraDirtySet.add(ref.blockIndex) }
         }
       }
     }
@@ -479,13 +479,27 @@ export class Parser {
         continue
       }
 
-      // list
-      if (/^\s*[\-\*\+]\s/.test(line) || /^\s*\d+\.\s/.test(line)) {
+      // list - CommonMark: 0-3 leading spaces before marker
+      if (/^( {0,3})([-*+]|\d{1,9}[.)]) /.test(line)) {
         const listLines: string[] = []
-        while (i < rawLines.length && (/^\s*[\-\*\+]\s/.test(rawLines[i]) || /^\s*\d+\.\s/.test(rawLines[i]))) {
-          listLines.push(rawLines[i])
-          i++
+        let blankBuf: string[] = []
+        let blankCount = 0
+        while (i < rawLines.length) {
+          const l = rawLines[i]
+          if (l === '') {
+            blankCount++
+            if (blankCount >= 2) break
+            blankBuf.push(l); i++; continue
+          }
+          blankCount = 0
+          if (/^\s*#{1,6}\s/.test(l) || /^\s*(`{3,}|~{3,})/.test(l) ||
+              /^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(l) || /^\s*>\s?/.test(l)) break
+          const leading = l.match(/^( *)/)?.[1].length ?? 0
+          if (leading === 0 && !/^( {0,3})([-*+]|\d{1,9}[.)]) /.test(l)) break
+          listLines.push(...blankBuf); blankBuf = []
+          listLines.push(l); i++
         }
+        listLines.push(...blankBuf)
         blocks.push({ type: BlockType.List, lines: listLines, index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
         continue
       }

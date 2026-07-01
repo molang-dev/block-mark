@@ -352,3 +352,14 @@ npm test         # vitest run（41 个测试用例）
 - 三种引用形式：`[text][id]`（完整）、`[text][]`（折叠，id=text）、`[id]`（快捷）
 - 遇到 Def 块时立即遍历 `_refs` 补填 url，支持先用后定义，无需后置处理，不触发额外 `onUpdate`
 - `update()` 中：替换区块前捕获 oldDefs / 清理 _refs，re-parse 后对比新旧 def，受影响的引用节点直接更新 text 并标 dirty
+
+### CommonMark 列表解析
+
+- `_subdivide` 列表检测改为 `/^( {0,3})([-*+]|\d{1,9}[.)]) /`：仅 0-3 个前导空格 + 标记符有效；4 空格前导不识别为列表（CommonMark 规范）
+- `_subdivide` 收集连续行：marker 行、缩进行（任意前导空格）、单个空行均收入同一 List 块；遇到 2 个连续空行或块级中断（heading / code fence / hr / blockquote）停止
+- `Node.loose?: boolean`：List 节点携带松散/紧凑标记
+- `parseMarker(line)`：解析列表标记，计算 W（列位置 + 标记长度 + 有效空格数），返回 `{ W, firstContent }`；支持 `-`/`*`/`+` 和 `\d{1,9}[.)]`；5 个以上空格时 eff=1，多余空格计入内容
+- `countLeading(line)`：统计前导空格数
+- `parseItemContent(lines)`：递归解析 item 内容——空行跳过，遇 marker 递归 `buildList`，其余聚合为 Paragraph 节点
+- `buildList` 重写：按 W 对齐收集 continuation 行（`indent >= W` 则剥除 W 个字符），blank 行触发 `itemEndedWithBlank`；前一 item 以 blank 结尾则整个列表标记为 `loose`
+- `render_html` List：tight 时 Paragraph 子节点跳过 `<p>` 包装（直接渲染 `kids`）；loose 时正常输出 `<p>`

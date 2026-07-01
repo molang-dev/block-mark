@@ -34,8 +34,16 @@ function renderNode(node: Node): string {
     }
     case NodeType.Blockquote:
       return `<blockquote>${kids(node)}</blockquote>`
-    case NodeType.List:
-      return `<ul>${kids(node)}</ul>`
+    case NodeType.List: {
+      const loose = node.loose === true
+      const items = (node.children ?? []).map(item => {
+        const content = (item.children ?? []).map(child =>
+          !loose && child.type === NodeType.Paragraph ? kids(child) : renderNode(child)
+        ).join('')
+        return `<li>${content}</li>`
+      }).join('')
+      return `<ul>${items}</ul>`
+    }
     case NodeType.ListItem:
       return `<li>${kids(node)}</li>`
     case NodeType.Table:
@@ -60,19 +68,21 @@ function renderNode(node: Node): string {
       return ''
     }
     case NodeType.Link: {
+      if (node.url !== undefined)
+        return `<a href="${escape(node.url)}">${kids(node)}</a>`
       const raw = node.text ?? ''
-      if (node.linkType === LinkType.Sup) {
-        const name = escape((node.defId ?? '').slice(1))
-        return `<sup id="fnref-${name}"><a href="#fn-${name}">${escape(raw)}</a></sup>`
-      }
-      if (node.linkType === LinkType.Ref)
-        return `<a href="${escape(node.href ?? '')}">${escape(raw)}</a>`
       const href = node.linkType === LinkType.Email
         ? `mailto:${escape(raw)}`
         : node.linkType === LinkType.URL && /^www\./i.test(raw)
           ? `http://${escape(raw)}`
           : escape(raw)
-      return `<a href="${href}">${kids(node) || escape(raw)}</a>`
+      return `<a href="${href}">${escape(raw)}</a>`
+    }
+    case NodeType.LinkRef:
+      return `<a href="${escape(node.url ?? '')}">${kids(node)}</a>`
+    case NodeType.Ref: {
+      const name = escape((node.defId ?? '').slice(1))
+      return `<sup id="fnref-${name}"><a href="#fn-${name}">${escape(node.text ?? '')}</a></sup>`
     }
     case NodeType.Image:
       return `<img src="${escape(node.text ?? '')}" alt="${escape(textOf(node.children ?? []))}">`
