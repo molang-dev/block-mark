@@ -161,7 +161,7 @@ export class Parser {
     const oldDefMap = new Map<string, string>()
     for (const b of this._blocks.slice(firstIdx, firstIdx + numReplace)) {
       if (b.type === BlockType.Def) {
-        const m = b.lines[0]?.match(/^\s*\[([^\]]+)\]:\s+(\S+)/)
+        const m = b.lines[0]?.match(/^\s*\[([^\]]+)\]: (\S+)/)
         if (m) oldDefMap.set(m[1].toLowerCase(), m[2])
       }
     }
@@ -199,14 +199,14 @@ export class Parser {
       if (!newDef || newDef.url !== oldUrl) {
         const newUrl = newDef?.url ?? ''
         for (const ref of this._refs) {
-          if (ref.node.defId === id) { ref.node.text = newUrl; extraDirtySet.add(ref.blockIndex) }
+          if (ref.node.defId === id) { extraDirtySet.add(ref.blockIndex) }
         }
       }
     }
     for (const [id, def] of this._defs) {
       if (!oldDefMap.has(id)) {
         for (const ref of this._refs) {
-          if (ref.node.defId === id && !ref.node.text) { ref.node.text = def.url; extraDirtySet.add(ref.blockIndex) }
+          if (ref.node.defId === id) { extraDirtySet.add(ref.blockIndex) }
         }
       }
     }
@@ -465,10 +465,17 @@ export class Parser {
         continue
       }
 
-      // def [id]: url
-      if (/^\s*\[([^\]]+)\]:\s+\S+/.test(line)) {
-        blocks.push({ type: BlockType.Def, lines: [line], index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
+      // def [id]: url  (continuation: empty or tab/4+ spaces)
+      if (/^\s*\[([^\]]+)\]: \S+/.test(line)) {
+        const defLines: string[] = [line]
         i++
+        while (i < rawLines.length) {
+          const l = rawLines[i]
+          if (l === '' || /^\t|^ {4}/.test(l)) { defLines.push(l); i++ }
+          else break
+        }
+        while (defLines.length > 1 && defLines[defLines.length - 1] === '') defLines.pop()
+        blocks.push({ type: BlockType.Def, lines: defLines, index: 0, lineStart: blockStart, lineEnd: 0, dirty: 2, markdown: [] })
         continue
       }
 

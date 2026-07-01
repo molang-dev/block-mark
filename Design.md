@@ -327,6 +327,21 @@ npm test         # vitest run（41 个测试用例）
 - `node2str` 输出 `linkType` 名称（如 `URL`、`Email`）
 - `LinkType` 从 `index.ts` 公开导出
 
+### 脚注（Footnotes）
+
+- `LinkType.Sup = 4`：`[^name]` 形式识别为脚注引用，与普通引用链接 `Ref` 区分
+- 脚注引用渲染：`<sup id="fnref-{name}"><a href="#fn-{name}">[name]</a></sup>`
+- Def 节点（`[^name]: content`）渲染：`<p id="fn-{name}"><a href="#fnref-{name}">↩</a> content</p>`，内容中 `\n`→`<br>`、空格→`&nbsp;`、`\t`→4个`&nbsp;`、全角空格→`&emsp;`
+- 脚注续行：`_subdivide` 在 Def 行之后继续收集空行及 `\t`/4空格开头的行；尾部空行裁掉
+- `Node.href?: string`：普通引用链接（`Ref`）节点用 `href` 存解析后的 URL，`text` 存显示文字
+- Def 正则要求冒号后恰好一个空格（`[id]: url`）
+- `node2str` 新增 `escapeText()`：`\n`→`\n`、`\t`→`\t`、半角空格→`\x20`、全角空格→`　`，避免特殊字符破坏调试输出
+
+### 列表解析增强
+
+- `buildList` 改用绝对缩进阈值 4：开头 < 4 个空格的 list marker 一律视为当前层 item，≥ 4 个空格递归为子列表（步进 4）
+- 消除因第一行缩进不为 0 导致同级 item 被误判为父级以上而丢失的问题
+
 ### 引用式链接（Reference Links）
 
 - `BlockType.Def`（=9）：`_subdivide` 识别 `[id]: url`，独立成块，`render_html` 返回 `''`
