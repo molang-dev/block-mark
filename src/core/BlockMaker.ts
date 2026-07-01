@@ -1,0 +1,532 @@
+import { openSync, readSync, closeSync } from 'node:fs'
+import {
+  Block, BlockMakerOptions, BlockMakerPlugin, BlockRule, InlineRule,
+  HtmlCtx, ChangedCallback, DirtyFlag, BlockContext, Node,
+  NodeType, BlockType, InlineContext, BlockProcessorCtx, LinkType,
+} from './types'
+import { coreBlockRules, coreBlockTypeNames, coreNodeTypeNames } from './parse-blocks'
+import { parseInline, coreInlineRules } from './parse-inline'
+
+// ─── List building (CommonMark W-rule) ───────────────────────────────────────
+
+function countLeading(line: string): number {
+  let i = 0; while (i < line.length && line[i] === ' ') i++; return i
+}
+
+function parseMarker(line: string): { W: number; firstContent: string; ordered: boolean; start: number } | null {
+  const bm = line.match(/^( {0,3})([-*+])( +)(.*)$/)
+  if (bm) {
+    const col = bm[1].length, spaces = bm[3].length
+    const eff = spaces >= 5 ? 1 : spaces
+    return { W: col + 1 + eff, firstContent: spaces >= 5 ? ' '.repeat(spaces - 1) + bm[4] : bm[4], ordered: false, start: 1 }
+  }
+  const om = line.match(/^( {0,3})(\d{1,9})([.)]) ?( +)(.*)$/)
+  if (om) {
+    const col = om[1].length, mlen = om[2].length + 1, spaces = (om[4] ?? ' ').length
+    const eff = spaces >= 5 ? 1 : spaces
+    return { W: col + mlen + eff, firstContent: spaces >= 5 ? ' '.repeat(spaces - 1) + (om[5] ?? '') : (om[5] ?? ''), ordered: true, start: parseInt(om[2], 10) }
+  }
+  return null
+}
+
+function buildListNode(
+  lines: string[],
+  start: number,
+  parseInlineFn: (s: string) => Node[],
+  subdivFn: (ls: string[], lstart: number) => Block[],
+  processBlockFn: (b: Block) => Node[],
+): { node: Node; end: number } {
+  const items: Node[] = []
+  let loose = false
+  let i = start
+  let prevBlank = false
+  let ordered = false
+  let listStart = 1
+
+  while (i < lines.length) {
+    const line = lines[i]
+    if (line === '') { if (items.length > 0) prevBlank = true; i++; continue }
+    const marker = parseMarker(line)
+    if (!marker) break
+    if (prevBlank && items.length > 0) loose = true
+    prevBlank = false
+    if (items.length === 0) { ordered = marker.ordered; listStart = marker.start }
+
+    const { W, firstContent } = marker
+    const contentLines: string[] = [firstContent]
+    i++
+    let itemBlank = false
+
+    while (i < lines.length) {
+      const l = lines[i]
+      if (l === '') { itemBlank = true; contentLines.push(''); i++; continue }
+      const indent = countLeading(l)
+      if (indent >= W) {
+        if (itemBlank) loose = true
+        contentLines.push(l.slice(W))
+        itemBlank = false; i++
+      } else break
+    }
+
+    if (itemBlank) prevBlank = true
+    while (contentLines.length && contentLines[contentLines.length - 1] === '') contentLines.pop()
+
+    // Parse item content
+    const itemChildren = buildItemContent(contentLines, parseInlineFn, subdivFn, processBlockFn)
+    const itemNode: Node = { type: NodeType.ListItem, children: itemChildren }
+    items.push(itemNode)
+  }
+
+  const listNode: Node = { type: NodeType.List, children: items, ordered, start: listStart }
+  if (loose) listNode.loose = true
+  return { node: listNode, end: i }
+}
+
+function buildItemContent(
+  lines: string[],
+  parseInlineFn: (s: string) => Node[],
+  subdivFn: (ls: string[], lstart: number) => Block[],
+  processBlockFn: (b: Block) => Node[],
+): Node[] {
+  const nodes: Node[] = []
+  let i = 0
+  while (i < lines.length) {
+    if (lines[i] === '') { i++; continue }
+    if (parseMarker(lines[i])) {
+      const { node, end } = buildListNode(lines, i, parseInlineFn, subdivFn, processBlockFn)
+      nodes.push(node); i = end; continue
+    }
+    const paraLines: string[] = []
+    while (i < lines.length && lines[i] !== '' && !parseMarker(lines[i])) {
+      paraLines.push(lines[i]); i++
+    }
+    if (paraLines.length) {
+      nodes.push({ type: NodeType.Paragraph, children: parseInlineFn(paraLines.join('\n')) })
+    }
+    if (i < lines.length && lines[i] === '') i++
+  }
+  return nodes
+}
+
+// ─── Blockquote processing ───────────────────────────────────────────────────
+
+function stripBq(line: string): string {
+  return line.replace(/^( {0,3})> ?/, '')
+}
+
+// ─── BlockMaker ──────────────────────────────────────────────────────────────
+
+export class BlockMaker {
+  private _opts: BlockMakerOptions
+  private _blockRules: BlockRule[]
+  private _inlineRules: InlineRule[]
+  private _blockProcessors: Map<number, (block: Block, ctx: BlockProcessorCtx) => Node[]>
+  private _htmlBlock: Map<number, (block: Block, ctx: HtmlCtx) => string>
+  private _htmlNode: Map<number, (node: Node, ctx: HtmlCtx) => string>
+  private _blockTypeNames: Map<number, string>
+  private _nodeTypeNames: Map<number, string>
+  private _blocks: Block[] = []
+  private _rawLines: string[] = []
+  private _defs: Map<string, { url: string; blockIndex: number }> = new Map()
+  private _refs: Array<{ node: Node; blockIndex: number }> = []
+  private _callback: ChangedCallback | null = null
+  private _batchSizes = [400, 800, 1600, 3200]
+  private _batchIdx = 0
+
+  constructor(opts: BlockMakerOptions = {}) {
+    this._opts = opts
+    this._blockRules = [...coreBlockRules]
+    this._inlineRules = [...coreInlineRules]
+    this._blockProcessors = new Map()
+    this._htmlBlock = new Map()
+    this._htmlNode = new Map()
+    this._blockTypeNames = new Map(Object.entries(coreBlockTypeNames).map(([k, v]) => [Number(k), v]))
+    this._nodeTypeNames  = new Map(Object.entries(coreNodeTypeNames).map(([k, v]) => [Number(k), v]))
+    this._registerCoreProcessors()
+  }
+
+  use(plugin: BlockMakerPlugin): this {
+    if (plugin.blockRules) {
+      this._blockRules.push(...plugin.blockRules)
+      this._blockRules.sort((a, b) => a.priority - b.priority)
+    }
+    if (plugin.inlineRules) {
+      this._inlineRules.push(...plugin.inlineRules)
+      this._inlineRules.sort((a, b) => a.priority - b.priority)
+    }
+    if (plugin.blockProcessors) {
+      for (const [k, fn] of Object.entries(plugin.blockProcessors))
+        this._blockProcessors.set(Number(k), fn)
+    }
+    if (plugin.htmlBlock) {
+      for (const [k, fn] of Object.entries(plugin.htmlBlock))
+        this._htmlBlock.set(Number(k), fn as (block: Block, ctx: HtmlCtx) => string)
+    }
+    if (plugin.htmlNode) {
+      for (const [k, fn] of Object.entries(plugin.htmlNode))
+        this._htmlNode.set(Number(k), fn as (node: Node, ctx: HtmlCtx) => string)
+    }
+    if (plugin.blockTypeNames) {
+      for (const [k, v] of Object.entries(plugin.blockTypeNames))
+        this._blockTypeNames.set(Number(k), v)
+    }
+    if (plugin.nodeTypeNames) {
+      for (const [k, v] of Object.entries(plugin.nodeTypeNames))
+        this._nodeTypeNames.set(Number(k), v)
+    }
+    return this
+  }
+
+  changed(cb: ChangedCallback): this {
+    this._callback = cb
+    return this
+  }
+
+  parse(content: string): this {
+    this._reset()
+    const lines = content.split('\n')
+    this._rawLines = lines
+    const sections = this._splitSections(lines)
+    let blockIdx = 0
+    for (const sec of sections) {
+      const blocks = this._subdivide(sec.lines, sec.lineStart)
+      for (const bl of blocks) {
+        bl.index = blockIdx++
+        this._processBlock(bl)
+        this._blocks.push(bl)
+      }
+    }
+    this._mergeTrailingBlanks()
+    this._assignTypeNames()
+    this._runHtmlPass()
+    this._notify(this._blocks, true)
+    // Reset dirty flags after parse — parse creates a fresh baseline
+    for (const b of this._blocks) b.dirty = DirtyFlag.Clean
+    return this
+  }
+
+  parseFile(filename: string): this {
+    this._reset()
+    const CHUNK = 64 * 1024
+    const fd = openSync(filename, 'r')
+    const buf = Buffer.alloc(CHUNK)
+    let pending = ''
+    let pendingLines: string[] = []
+    let globalLine = 0
+    let blockIdx = 0
+    let batchCount = 0
+
+    const flush = (isEnd: boolean) => {
+      const sections = this._splitSections(pendingLines)
+      const newBlocks: Block[] = []
+      for (const sec of sections) {
+        const blocks = this._subdivide(sec.lines, sec.lineStart)
+        for (const bl of blocks) {
+          bl.index = blockIdx++
+          this._processBlock(bl)
+          this._blocks.push(bl)
+          newBlocks.push(bl)
+        }
+      }
+      pendingLines = []
+      if (isEnd) {
+        this._mergeTrailingBlanks()
+        this._assignTypeNames()
+        this._runHtmlPass()
+        this._notify(this._blocks, true)
+      } else {
+        this._assignTypeNames()
+        this._runHtmlPass()
+        const size = this._batchSizes[Math.min(this._batchIdx, this._batchSizes.length - 1)]
+        batchCount += newBlocks.length
+        if (batchCount >= size) { this._notify(newBlocks, false); this._batchIdx++; batchCount = 0 }
+      }
+    }
+
+    let bytesRead: number
+    while ((bytesRead = readSync(fd, buf, 0, CHUNK, null)) > 0) {
+      const chunk = pending + buf.slice(0, bytesRead).toString('utf8')
+      const parts = chunk.split('\n')
+      pending = parts.pop()!
+      for (const l of parts) { pendingLines.push(l); globalLine++ }
+      const size = this._batchSizes[Math.min(this._batchIdx, this._batchSizes.length - 1)]
+      if (pendingLines.length >= size) flush(false)
+    }
+    closeSync(fd)
+    if (pending) pendingLines.push(pending)
+    flush(true)
+    return this
+  }
+
+  update(row1: number, col1: number, row2: number, col2: number, content: string): void {
+    if (!this._blocks.length) { this.parse(content); return }
+
+    const rawLines = [...this._rawLines]
+
+    // Clamp coordinates
+    row1 = Math.max(0, Math.min(row1, rawLines.length - 1))
+    row2 = Math.max(row1, Math.min(row2, rawLines.length - 1))
+
+    const prefix   = (rawLines[row1] ?? '').slice(0, col1)
+    const suffix   = (rawLines[row2] ?? '').slice(col2)
+    const middle   = (prefix + content + suffix).split('\n')
+    const lineDelta = middle.length - (row2 - row1 + 1)
+
+    // Splice raw lines
+    rawLines.splice(row1, row2 - row1 + 1, ...middle)
+
+    // Find affected blocks (expand to whole contiguous range)
+    const firstAffected = this._blocks.findIndex(b => b.lineEnd >= row1)
+    const lastAffected  = this._blocks.findIndex(b => b.lineStart > row2)
+    const lo = Math.max(0, firstAffected)
+    const hi = lastAffected < 0 ? this._blocks.length - 1 : lastAffected - 1
+
+    // Snap to surrounding section boundaries
+    const secStart = this._blocks[lo].lineStart
+    const secEnd   = this._blocks[hi].lineEnd + lineDelta
+
+    // Re-subdivide affected lines
+    const affLines = rawLines.slice(secStart, secEnd + 1)
+    const newBlocks = this._subdivide(affLines, secStart)
+
+    // Assign indices in context
+    let blockIdx = lo
+    for (const bl of newBlocks) { bl.index = blockIdx; this._processBlock(bl); blockIdx++ }
+
+    // Splice into _blocks
+    this._blocks.splice(lo, hi - lo + 1, ...newBlocks)
+
+    // Fix subsequent blocks: shift line numbers; always mark Shifted when lines moved
+    for (let i = lo + newBlocks.length; i < this._blocks.length; i++) {
+      const bl = this._blocks[i]
+      bl.index = i
+      if (lineDelta !== 0) {
+        bl.lineStart += lineDelta; bl.lineEnd += lineDelta
+        bl.dirty = DirtyFlag.Shifted
+      }
+    }
+
+    this._mergeTrailingBlanks()
+    this._assignTypeNames()
+    this._runHtmlPass()
+
+    this._rawLines = rawLines  // save updated raw lines
+
+    const dirty = this._blocks.filter(b => b.dirty > 0)
+    this._notify(dirty, true)
+  }
+
+  allBlocks(): Block[] { return this._blocks }
+
+  findBlocks(start: number, end: number): Block[] {
+    if (start > end) [start, end] = [end, start]
+    return this._blocks.filter(b => b.lineStart <= end && b.lineEnd >= start)
+  }
+
+  // ─── private ─────────────────────────────────────────────────────────────
+
+  private _reset(): void {
+    this._blocks = []; this._rawLines = []; this._defs = new Map(); this._refs = []; this._batchIdx = 0
+  }
+
+  private _splitSections(lines: string[]): Array<{ lines: string[]; lineStart: number }> {
+    const sections: Array<{ lines: string[]; lineStart: number }> = []
+    let current: string[] = []
+    let secStart = 0
+
+    const push = (start: number) => {
+      if (current.length) { sections.push({ lines: current, lineStart: start }); current = [] }
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i]
+      if (l !== lines[0] && /^( {0,3})(#{1,6})(\s|$)/.test(l)) {
+        push(secStart); secStart = i
+      }
+      current.push(l)
+    }
+    push(secStart)
+    return sections.length ? sections : [{ lines, lineStart: 0 }]
+  }
+
+  _subdivide(lines: string[], lineStart: number): Block[] {
+    const ctx: BlockContext = { defs: this._defs, refs: this._refs, blockIndex: this._blocks.length }
+    const blocks: Block[] = []
+    let i = 0
+
+    while (i < lines.length) {
+      let matched = false
+      for (const rule of this._blockRules) {
+        const block = rule.tryCollect(lines, i, ctx)
+        if (block) {
+          block.lineStart = lineStart + i
+          block.lineEnd   = block.lineStart + block.lines.length - 1
+          blocks.push(block)
+          i += block.lines.length
+          ctx.blockIndex++
+          matched = true
+          break
+        }
+      }
+      if (!matched) i++
+    }
+
+    // Merge isolated blank paragraphs into previous block
+    return this._mergeTrailing(blocks)
+  }
+
+  private _mergeTrailing(blocks: Block[]): Block[] {
+    const out: Block[] = []
+    for (const bl of blocks) {
+      if (bl.type === BlockType.Paragraph && bl.lines.length === 1 && bl.lines[0] === '') {
+        if (out.length) { out[out.length - 1].lines.push(''); out[out.length - 1].lineEnd++ }
+        else out.push(bl)
+      } else out.push(bl)
+    }
+    return out
+  }
+
+  private _mergeTrailingBlanks(): void {
+    // Already handled in _mergeTrailing per section; this is a no-op for now
+  }
+
+  private _makeInlineCtx(blockIndex: number): InlineContext {
+    const self = this
+    const ctx: InlineContext = {
+      defs: this._defs, refs: this._refs, blockIndex,
+      parse(src: string) { return parseInline(src, ctx, self._inlineRules) },
+    }
+    return ctx
+  }
+
+  private _makeProcessorCtx(blockIndex: number): BlockProcessorCtx {
+    const inlineCtx = this._makeInlineCtx(blockIndex)
+    return {
+      parseInline: (src) => inlineCtx.parse(src),
+      subdivide: (lines, ls) => this._subdivide(lines, ls),
+      defs: this._defs, refs: this._refs, blockIndex,
+    }
+  }
+
+  private _processBlock(block: Block): void {
+    block.dirty = DirtyFlag.Changed
+    const proc = this._blockProcessors.get(block.type)
+    if (proc) {
+      block.markdown = proc(block, this._makeProcessorCtx(block.index))
+    }
+  }
+
+  private _registerCoreProcessors(): void {
+    this._blockProcessors.set(BlockType.Heading, (block, ctx) => {
+      const lines = [...block.lines]
+      let text = lines[0]
+      if (block.depth && lines.length === 1) {
+        // ATX: strip leading # and trailing #
+        text = text.replace(/^( {0,3})#{1,6}\s*/, '').replace(/\s+#+\s*$/, '').trim()
+      } else if (lines.length >= 2) {
+        // Setext: join all but last line
+        text = lines.slice(0, -1).join('\n')
+      }
+      const nd: Node = { type: NodeType.Heading, depth: block.depth ?? 1, children: ctx.parseInline(text) }
+      return [nd]
+    })
+
+    this._blockProcessors.set(BlockType.Paragraph, (block, ctx) => {
+      const text = block.lines.filter(l => l !== '').join('\n')
+      return text ? [{ type: NodeType.Paragraph, children: ctx.parseInline(text) }] : []
+    })
+
+    this._blockProcessors.set(BlockType.Code, (block) => {
+      let lines = block.lines
+      const isFenced = /^\s*(`{3,}|~{3,})/.test(lines[0])
+      let text: string
+      if (isFenced) {
+        const closeIdx = lines.length > 1 && /^\s*(`{3,}|~{3,})/.test(lines[lines.length - 1]) ? lines.length - 1 : undefined
+        text = lines.slice(1, closeIdx).join('\n')
+      } else {
+        // Indented: strip 4 spaces or 1 tab
+        text = lines.map(l => l.replace(/^( {4}|\t)/, '')).join('\n')
+      }
+      const nd: Node = { type: NodeType.Code, text, lang: block.meta || undefined }
+      return [nd]
+    })
+
+    this._blockProcessors.set(BlockType.Hr, () => [{ type: NodeType.Hr }])
+    this._blockProcessors.set(BlockType.Html, (block) => [{ type: NodeType.Html, text: block.lines.join('\n') }])
+    this._blockProcessors.set(BlockType.Def, (block) => {
+      const nd: Node = { type: NodeType.Def, defId: block.meta, text: block.lines[0] }
+      return [nd]
+    })
+
+    this._blockProcessors.set(BlockType.Blockquote, (block, ctx) => {
+      const stripped = block.lines.map(stripBq)
+      const inner = ctx.subdivide(stripped, block.lineStart)
+      const children: Node[] = []
+      for (const ib of inner) {
+        const proc = this._blockProcessors.get(ib.type)
+        if (proc) {
+          const iCtx = this._makeProcessorCtx(ib.index)
+          children.push(...proc(ib, iCtx))
+        }
+      }
+      return [{ type: NodeType.Blockquote, children }]
+    })
+
+    this._blockProcessors.set(BlockType.List, (block, ctx) => {
+      const { node } = buildListNode(
+        block.lines, 0,
+        ctx.parseInline,
+        ctx.subdivide,
+        (b) => {
+          const p = this._blockProcessors.get(b.type)
+          return p ? p(b, ctx) : []
+        },
+      )
+      return [node]
+    })
+  }
+
+  private _assignTypeNames(): void {
+    if (!this._opts.showTypeName) return
+    for (const bl of this._blocks) {
+      bl.typeName = this._blockTypeNames.get(bl.type) ?? `Unknown(${bl.type})`
+      for (const nd of bl.markdown ?? []) this._assignNodeTypeNames(nd)
+    }
+  }
+
+  private _assignNodeTypeNames(nd: Node): void {
+    nd.typeName = this._nodeTypeNames.get(nd.type) ?? `Unknown(${nd.type})`
+    for (const child of nd.children ?? []) this._assignNodeTypeNames(child)
+  }
+
+  private _makeHtmlCtx(): HtmlCtx {
+    const escape = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    const renderNode = (nd: Node): string => {
+      const fn = this._htmlNode.get(nd.type)
+      if (fn) return fn(nd, ctx)
+      return escape(nd.text ?? '')
+    }
+    const renderNodes = (nodes: Node[]): string => nodes.map(renderNode).join('')
+    const renderLines = (lines: string[]): string => {
+      const iCtx = this._makeInlineCtx(0)
+      const nodes = parseInline(lines.join('\n'), iCtx, this._inlineRules)
+      return renderNodes(nodes)
+    }
+    const ctx: HtmlCtx = { renderNodes, renderNode, renderLines, escape }
+    return ctx
+  }
+
+  private _runHtmlPass(): void {
+    if (this._htmlBlock.size === 0 && this._htmlNode.size === 0) return
+    const ctx = this._makeHtmlCtx()
+    for (const bl of this._blocks) {
+      const fn = this._htmlBlock.get(bl.type)
+      if (fn) bl.html = fn(bl, ctx)
+    }
+  }
+
+  private _notify(blocks: Block[], isEnd: boolean): void {
+    if (this._callback) this._callback(blocks, isEnd)
+  }
+}
