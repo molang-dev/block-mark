@@ -42,6 +42,7 @@ export enum LinkType {
   URL   = 1,
   Email,
   Ref,
+  Sup,
 }
 
 export interface Node {
@@ -52,6 +53,7 @@ export interface Node {
   lang?: string
   linkType?: LinkType
   defId?: string
+  href?: string
 }
 
 export interface ParseContext {

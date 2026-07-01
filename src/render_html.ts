@@ -46,10 +46,27 @@ function renderNode(node: Node): string {
       return `<td>${kids(node)}</td>`
     case NodeType.Hr:
       return '<hr>'
-    case NodeType.Def:
+    case NodeType.Def: {
+      const defId = node.defId ?? ''
+      if (defId.startsWith('^')) {
+        const name = escape(defId.slice(1))
+        const body = escape(node.text ?? '')
+          .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;')
+          .replace(/　/g, '&emsp;')
+          .replace(/ /g, '&nbsp;')
+          .replace(/\n/g, '<br>')
+        return `<p id="fn-${name}"><a href="#fnref-${name}">↩</a> ${body}</p>`
+      }
       return ''
+    }
     case NodeType.Link: {
       const raw = node.text ?? ''
+      if (node.linkType === LinkType.Sup) {
+        const name = escape((node.defId ?? '').slice(1))
+        return `<sup id="fnref-${name}"><a href="#fn-${name}">${escape(raw)}</a></sup>`
+      }
+      if (node.linkType === LinkType.Ref)
+        return `<a href="${escape(node.href ?? '')}">${escape(raw)}</a>`
       const href = node.linkType === LinkType.Email
         ? `mailto:${escape(raw)}`
         : node.linkType === LinkType.URL && /^www\./i.test(raw)

@@ -12,16 +12,15 @@ function n(type: NodeType, text?: string, children?: Node[], depth?: number, lan
 export function parseBlock(block: TypedBlock, ctx?: ParseContext): Node[] {
   switch (block.type) {
     case BlockType.Def: {
-      const m = block.lines[0]?.match(/^\s*\[([^\]]+)\]:\s+(\S+)/)
+      const m = block.lines[0]?.match(/^\s*\[([^\]]+)\]: (\S+)/)
       if (m) {
-        const id = m[1].toLowerCase(), url = m[2]
+        const id = m[1].toLowerCase()
+        const rest = block.lines.slice(1)
+        const text = [m[2], ...rest].join('\n').trim()
         if (ctx) {
-          ctx.defs.set(id, { url, blockIndex: ctx.blockIndex })
-          for (const ref of ctx.refs) {
-            if (ref.node.defId === id && !ref.node.text) ref.node.text = url
-          }
+          ctx.defs.set(id, { url: text, blockIndex: ctx.blockIndex })
         }
-        const nd = n(NodeType.Def, url)
+        const nd = n(NodeType.Def, text)
         nd.defId = id
         return [nd]
       }
@@ -134,8 +133,8 @@ function parseBlockquote(lines: string[], ctx?: ParseContext): Node {
   return n(NodeType.Blockquote, '', children)
 }
 
-function buildList(lines: string[], start: number, ctx?: ParseContext): { items: Node[]; end: number } {
-  const baseIndent = lines[start]?.match(/^(\s*)/)?.[1].length ?? 0
+function buildList(lines: string[], start: number, ctx?: ParseContext, minIndent = 0): { items: Node[]; end: number } {
+  const maxTopLevel = minIndent + 4
   const items: Node[] = []
   let i = start
 
@@ -143,8 +142,8 @@ function buildList(lines: string[], start: number, ctx?: ParseContext): { items:
     const m = lines[i].match(/^(\s*)(?:[-*+]|\d+\.)\s(.*)/)
     if (!m) { i++; continue }
     const indent = m[1].length
-    if (indent < baseIndent) break
-    if (indent > baseIndent) { i++; continue }
+    if (indent < minIndent) break
+    if (indent >= maxTopLevel) { i++; continue }
 
     const inlineNodes = parseInline(m[2] ?? '', ctx)
     i++
@@ -152,8 +151,8 @@ function buildList(lines: string[], start: number, ctx?: ParseContext): { items:
     let subList: Node | null = null
     if (i < lines.length) {
       const nm = lines[i].match(/^(\s*)(?:[-*+]|\d+\.)\s/)
-      if (nm && nm[1].length > baseIndent) {
-        const res = buildList(lines, i, ctx)
+      if (nm && nm[1].length >= maxTopLevel) {
+        const res = buildList(lines, i, ctx, maxTopLevel)
         subList = n(NodeType.List, '', res.items)
         i = res.end
       }
@@ -303,12 +302,15 @@ class Scanner {
   }
 
   private _makeRef(displayText: string, id: string): Node {
-    const nd = n(NodeType.Link, '', parseInline(displayText, this.ctx))
-    nd.linkType = LinkType.Ref
+    const isSup = id.startsWith('^')
+    const nd = n(NodeType.Link, isSup ? '[' + id.slice(1) + ']' : displayText)
+    nd.linkType = isSup ? LinkType.Sup : LinkType.Ref
     nd.defId = id
     if (this.ctx) {
-      const def = this.ctx.defs.get(id)
-      if (def) nd.text = def.url
+      if (!isSup) {
+        const def = this.ctx.defs.get(id)
+        if (def) nd.href = def.url
+      }
       this.ctx.refs.push({ node: nd, blockIndex: this.ctx.blockIndex })
     }
     return nd

@@ -1,5 +1,11 @@
 import { BlockType, NodeType, LinkType, TypedBlock, Node } from './types'
 
+function escapeText(s: string): string {
+  return s.replace(/\r/g, '\\r').replace(/\n/g, '\\n')
+           .replace(/\t/g, '\\t').replace(/ /g, '\\x20')
+           .replace(/　/g, '\\u3000')
+}
+
 export function node2str(node: Node, indent = 0): string {
   const pad = '  '.repeat(indent)
   const i1  = pad + '  '
@@ -12,7 +18,8 @@ export function node2str(node: Node, indent = 0): string {
   if (node.lang)                     lines.push(`${i1}lang     : ${node.lang}`)
   if (node.linkType !== undefined)   lines.push(`${i1}linkType : ${LinkType[node.linkType]}`)
   if (node.defId)                    lines.push(`${i1}defId    : '${node.defId}'`)
-  if (node.text !== undefined) lines.push(`${i1}text     : '${node.text}'`)
+  if (node.href !== undefined)       lines.push(`${i1}href     : '${node.href}'`)
+  if (node.text !== undefined)       lines.push(`${i1}text     : '${escapeText(node.text)}'`)
   if (node.children?.length) {
     const kids = node.children.map(c => node2str(c, indent + 2)).join('\n')
     lines.push(`${i1}children : [\n${kids}\n${i1}]`)
