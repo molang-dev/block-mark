@@ -1,0 +1,148 @@
+// ─── Dirty flag ───────────────────────────────────────────────────────────────
+
+export enum DirtyFlag {
+  Clean   = 0,
+  Shifted = 1,
+  Changed = 2,
+}
+
+// ─── Core block types (1–99) ──────────────────────────────────────────────────
+
+export enum BlockType {
+  Heading    = 1,
+  Paragraph  = 2,
+  List       = 3,
+  Code       = 4,
+  Blockquote = 5,
+  Hr         = 6,
+  Html       = 7,
+  Def        = 8,
+}
+
+// ─── Core node types (1–99) ───────────────────────────────────────────────────
+
+export enum NodeType {
+  Text       = 1,
+  Em         = 2,
+  Strong     = 3,
+  Codespan   = 4,
+  Link       = 5,
+  LinkRef    = 6,
+  Image      = 7,
+  Br         = 8,  // soft line break
+  HardBr     = 9,  // hard line break (2 trailing spaces or \)
+  Escape     = 10, // backslash escape or &entity;
+  Tag        = 11, // raw inline HTML
+  Heading    = 12,
+  Paragraph  = 13,
+  Blockquote = 14,
+  List       = 15,
+  ListItem   = 16,
+  Code       = 17,
+  Hr         = 18,
+  Html       = 19,
+  Def        = 20,
+}
+
+export enum LinkType {
+  Url   = 1,
+  Email = 2,
+}
+
+// ─── AST node ─────────────────────────────────────────────────────────────────
+
+export interface Node {
+  type: number
+  typeName?: string
+  text?: string
+  children?: Node[]
+  url?: string
+  defId?: string
+  depth?: number
+  lang?: string
+  loose?: boolean
+  ordered?: boolean
+  start?: number
+  linkType?: LinkType
+  align?: Array<'left' | 'right' | 'center' | null>
+  meta?: string
+}
+
+// ─── Block ────────────────────────────────────────────────────────────────────
+
+export interface Block {
+  type: number
+  typeName?: string
+  lines: string[]
+  index: number
+  lineStart: number
+  lineEnd: number
+  dirty: DirtyFlag
+  depth?: number
+  meta?: string
+  markdown?: Node[]
+  html?: string
+}
+
+// ─── Parsing contexts ─────────────────────────────────────────────────────────
+
+export interface BlockContext {
+  defs: Map<string, { url: string; blockIndex: number }>
+  refs: Array<{ node: Node; blockIndex: number }>
+  blockIndex: number
+}
+
+export interface InlineContext {
+  defs: Map<string, { url: string; blockIndex: number }>
+  refs: Array<{ node: Node; blockIndex: number }>
+  blockIndex: number
+  parse(src: string): Node[]
+}
+
+export interface BlockProcessorCtx {
+  parseInline(src: string): Node[]
+  subdivide(lines: string[], lineStart: number): Block[]
+  defs: Map<string, { url: string; blockIndex: number }>
+  refs: Array<{ node: Node; blockIndex: number }>
+  blockIndex: number
+}
+
+export interface HtmlCtx {
+  renderNodes(nodes: Node[]): string
+  renderNode(node: Node): string
+  renderLines(lines: string[]): string
+  escape(s: string): string
+}
+
+// ─── Plugin interfaces ────────────────────────────────────────────────────────
+
+export interface BlockRule {
+  name: string
+  priority: number
+  tryCollect(lines: string[], at: number, ctx: BlockContext): Block | null
+}
+
+export interface InlineRule {
+  name: string
+  priority: number
+  trigger(ch: string, next: string): boolean
+  tryParse(src: string, pos: number, ctx: InlineContext): { node: Node; length: number } | null
+}
+
+export interface BlockMakerPlugin {
+  name: string
+  blockRules?: BlockRule[]
+  inlineRules?: InlineRule[]
+  blockProcessors?: Record<number, (block: Block, ctx: BlockProcessorCtx) => Node[]>
+  htmlBlock?: Record<number, (block: Block, ctx: HtmlCtx) => string>
+  htmlNode?: Record<number, (node: Node, ctx: HtmlCtx) => string>
+  // Separate maps avoid numeric collision between BlockType and NodeType
+  blockTypeNames?: Record<number, string>
+  nodeTypeNames?: Record<number, string>
+}
+
+export interface BlockMakerOptions {
+  showTypeName?: boolean
+}
+
+export type ChangedCallback = (blocks: Block[], isEnd: boolean) => void
