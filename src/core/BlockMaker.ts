@@ -131,6 +131,7 @@ export class BlockMaker {
   private _defs: Map<string, { url: string; blockIndex: number }> = new Map()
   private _refs: Array<{ node: Node; blockIndex: number }> = []
   private _plugins: BlockMakerPlugin[] = []
+  private _nextId = 1
   private _callback: ChangedCallback | null = null
   private _batchSizes: number[] = [400, 800, 1600, 3200]
   private _batchIdx = 0
@@ -198,11 +199,12 @@ export class BlockMaker {
     const lines = content.split('\n')
     this._rawLines = lines
     const sections = this._splitSections(lines)
-    let blockIdx = 0
+    let blockOrder = 0
     for (const sec of sections) {
       const blocks = this._subdivide(sec.lines, sec.lineStart)
       for (const bl of blocks) {
-        bl.index = blockIdx++
+        bl.order = blockOrder++
+        bl.id = this._nextId++
         this._processBlock(bl)
         this._blocks.push(bl)
       }
@@ -234,7 +236,7 @@ export class BlockMaker {
     let pending = ''
     let pendingLines: string[] = []
     let globalLine = 0
-    let blockIdx = 0
+    let blockOrder = 0
     let batchCount = 0
 
     const flush = (isEnd: boolean) => {
@@ -243,7 +245,8 @@ export class BlockMaker {
       for (const sec of sections) {
         const blocks = this._subdivide(sec.lines, sec.lineStart)
         for (const bl of blocks) {
-          bl.index = blockIdx++
+          bl.order = blockOrder++
+          bl.id = this._nextId++
           this._processBlock(bl)
           this._blocks.push(bl)
           newBlocks.push(bl)
@@ -310,17 +313,17 @@ export class BlockMaker {
     const affLines = rawLines.slice(secStart, secEnd + 1)
     const newBlocks = this._subdivide(affLines, secStart)
 
-    // Assign indices in context
-    let blockIdx = lo
-    for (const bl of newBlocks) { bl.index = blockIdx; this._processBlock(bl); blockIdx++ }
+    // Assign order and id to new blocks
+    let blockOrder = lo
+    for (const bl of newBlocks) { bl.order = blockOrder; bl.id = this._nextId++; this._processBlock(bl); blockOrder++ }
 
     // Splice into _blocks
     this._blocks.splice(lo, hi - lo + 1, ...newBlocks)
 
-    // Fix subsequent blocks: shift line numbers; always mark Shifted when lines moved
+    // Fix subsequent blocks: update order, keep id; shift line numbers when needed
     for (let i = lo + newBlocks.length; i < this._blocks.length; i++) {
       const bl = this._blocks[i]
-      bl.index = i
+      bl.order = i
       if (lineDelta !== 0) {
         bl.lineStart += lineDelta; bl.lineEnd += lineDelta
         bl.dirty = DirtyFlag.Shifted
@@ -355,6 +358,7 @@ export class BlockMaker {
 
   private _reset(): void {
     this._blocks = []; this._rawLines = []; this._defs = new Map(); this._refs = []; this._batchIdx = 0
+    this._nextId = 1
   }
 
   private _splitSections(lines: string[]): Array<{ lines: string[]; lineStart: number }> {
@@ -453,7 +457,7 @@ export class BlockMaker {
     block.dirty = DirtyFlag.Changed
     const proc = this._blockProcessors.get(block.type)
     if (proc) {
-      block.markdown = proc(block, this._makeProcessorCtx(block.index))
+      block.markdown = proc(block, this._makeProcessorCtx(block.order))
     }
   }
 
@@ -506,7 +510,7 @@ export class BlockMaker {
       for (const ib of inner) {
         const proc = this._blockProcessors.get(ib.type)
         if (proc) {
-          const iCtx = this._makeProcessorCtx(ib.index)
+          const iCtx = this._makeProcessorCtx(ib.order)
           children.push(...proc(ib, iCtx))
         }
       }
@@ -586,7 +590,7 @@ export class BlockMaker {
     // Inject id into every heading's html
     for (const bl of this._blocks) {
       if (bl.type === BlockType.Heading && bl.html) {
-        bl.html = bl.html.replace(/^<(h\d)>/, `<$1 id="bmd-h-${bl.index}">`)
+        bl.html = bl.html.replace(/^<(h\d)>/, `<$1 id="bmd-h-${bl.id}">`)
       }
     }
 
@@ -599,7 +603,7 @@ export class BlockMaker {
 
     for (const b of headings) {
       const d = b.depth ?? 1
-      const link = `<a href="#bmd-h-${b.index}">${esc(this._extractText(b.markdown?.[0]?.children ?? []))}</a>`
+      const link = `<a href="#bmd-h-${b.id}">${esc(this._extractText(b.markdown?.[0]?.children ?? []))}</a>`
       if (stack.length === 0) {
         parts.push('<ul>', '<li>', link); stack.push(d)
       } else {
@@ -620,7 +624,7 @@ export class BlockMaker {
     while (stack.length > 0) { parts.push('</li>', '</ul>'); stack.pop() }
 
     if (!this._tocBlock) {
-      this._tocBlock = { type: BlockType.Toc, lines: [], index: -1, lineStart: -1, lineEnd: -1, dirty: DirtyFlag.Clean }
+      this._tocBlock = { type: BlockType.Toc, lines: [], id: 0, order: -1, lineStart: -1, lineEnd: -1, dirty: DirtyFlag.Clean }
       if (this._opts.showTypeName) this._tocBlock.typeName = 'Toc'
     }
     this._tocBlock.html = `<nav>${parts.join('')}</nav>`

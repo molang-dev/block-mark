@@ -9,7 +9,7 @@ function esc(s: string): string {
 }
 
 function bl(lines: string[]): Block {
-  return { type: MermaidBlockType.Diagram, lines, index: 0, lineStart: 0, lineEnd: 0, dirty: DirtyFlag.Changed }
+  return { type: MermaidBlockType.Diagram, lines, id: 0, order: 0, lineStart: 0, lineEnd: 0, dirty: DirtyFlag.Changed }
 }
 
 const mermaidRule: BlockRule = {

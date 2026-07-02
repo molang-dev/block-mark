@@ -75,7 +75,8 @@ export interface Block {
   type: number
   typeName?: string
   lines: string[]
-  index: number
+  id: number      // stable unique id, monotonically increasing from 1; 0 = unassigned
+  order: number   // position in blocks array, reassigned on every update
   lineStart: number
   lineEnd: number
   dirty: DirtyFlag

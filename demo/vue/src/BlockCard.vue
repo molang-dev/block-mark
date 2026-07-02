@@ -13,7 +13,7 @@ const TYPE_LABELS = { 101001: 'H', 101002: 'P', 101003: 'L', 101004: 'C', 101005
     </span>
     <div class="card-body">
       <div class="block-info">
-        {{ block.index }} : {{ block.lineStart }} ~ {{ block.lineEnd }}
+        id:{{ block.id }} ord:{{ block.order }} {{ block.lineStart }}~{{ block.lineEnd }}
         <span :class="['dirty-tag', (block.dirty ?? 0) === 2 ? 'dirty-tag-lines' : (block.dirty ?? 0) === 1 ? 'dirty-tag-pos' : '']">
           dirty: {{ block.dirty ?? 0 }}
         </span>

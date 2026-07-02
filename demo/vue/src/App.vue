@@ -155,7 +155,7 @@ const matchedBlock = computed(() => {
             v-if="blocks.length > 0"
             :items="blocks"
             :min-item-size="44"
-            key-field="index"
+            key-field="id"
             style="height: 100%"
           >
             <template #default="{ item, index, active }">
@@ -179,7 +179,7 @@ const matchedBlock = computed(() => {
       <div class="bar-left">行 {{ cursorLine }}</div>
       <div class="bar-divider" />
       <div class="bar-right">
-        {{ matchedBlock ? `${matchedBlock.index} : ${cursorLine}` : '—' }}
+        {{ matchedBlock ? `id:${matchedBlock.id} ord:${matchedBlock.order} ln:${cursorLine}` : '—' }}
       </div>
     </div>
   </div>
