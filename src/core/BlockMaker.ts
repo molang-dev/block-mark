@@ -136,7 +136,9 @@ export class BlockMaker {
   constructor(opts: BlockMakerOptions = {}) {
     this._opts = opts
     if (opts.batchSizes) this._batchSizes = opts.batchSizes
-    this._blockRules = [...coreBlockRules]
+    this._blockRules = opts.indentedCode === false
+      ? coreBlockRules.filter(r => r.name !== 'indented-code')
+      : [...coreBlockRules]
     this._inlineRules = [...coreInlineRules]
     this._blockProcessors = new Map()
     this._htmlBlock = new Map()
@@ -370,14 +372,19 @@ export class BlockMaker {
   }
 
   _subdivide(lines: string[], lineStart: number): Block[] {
+    // When indented-code is disabled, strip ≥4 leading spaces/tabs (no longer code markers)
+    const ruleLines = this._opts.indentedCode === false
+      ? lines.map(l => /^( {4,}|\t)/.test(l) ? l.replace(/^[ \t]+/, '') : l)
+      : lines
+
     const ctx: BlockContext = { defs: this._defs, refs: this._refs, blockIndex: this._blocks.length }
     const blocks: Block[] = []
     let i = 0
 
-    while (i < lines.length) {
+    while (i < ruleLines.length) {
       let matched = false
       for (const rule of this._blockRules) {
-        const block = rule.tryCollect(lines, i, ctx)
+        const block = rule.tryCollect(ruleLines, i, ctx)
         if (block) {
           block.lineStart = lineStart + i
           block.lineEnd   = block.lineStart + block.lines.length - 1
@@ -391,7 +398,6 @@ export class BlockMaker {
       if (!matched) i++
     }
 
-    // Merge isolated blank paragraphs into previous block
     return this._mergeTrailing(blocks)
   }
 
