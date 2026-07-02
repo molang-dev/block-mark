@@ -10,6 +10,7 @@ export enum GFMBlockType {
   Table       = 111001,
   FootnoteDef = 111002,
   MathBlock   = 111003,
+  Alert       = 111004,
 }
 
 export enum GFMNodeType {
@@ -23,6 +24,8 @@ export enum GFMNodeType {
   MathInline  = 112008,
   MathBlock   = 112009,
   Emoji       = 112010,
+  Alert       = 112011,
+  AlertTitle  = 112012,
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -101,7 +104,30 @@ const footnoteDefRule: BlockRule = {
   },
 }
 
-// ─── G-B-03  Display Math $$ ─────────────────────────────────────────────────
+// ─── G-B-03  Alert > [!TYPE] ─────────────────────────────────────────────────
+
+const ALERT_RE = /^( {0,3})> {0,4}\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/i
+
+const alertRule: BlockRule = {
+  name: 'gfm-alert',
+  priority: 59,
+  tryCollect(lines, at) {
+    const m = lines[at]?.match(ALERT_RE)
+    if (!m) return null
+    const alertType = m[2].toLowerCase()
+    const collected = [lines[at]]
+    let i = at + 1
+    while (i < lines.length) {
+      const l = lines[i]
+      if (/^( {0,3})>/.test(l)) { collected.push(l); i++ }
+      else if (collected.length > 0 && l !== '' && !/^( {0,3})>/.test(l)) break
+      else break
+    }
+    return bl(GFMBlockType.Alert, collected, { meta: alertType })
+  },
+}
+
+// ─── G-B-04  Display Math $$ ─────────────────────────────────────────────────
 
 const mathBlockRule: BlockRule = {
   name: 'gfm-math-block',
@@ -202,6 +228,19 @@ const taskCheckbox: InlineRule = {
 
 // ─── Block processors ────────────────────────────────────────────────────────
 
+const ALERT_TITLES: Record<string, string> = {
+  note: 'Note', tip: 'Tip', important: 'Important', warning: 'Warning', caution: 'Caution',
+}
+
+function buildAlertNode(block: Block, ctx: BlockProcessorCtx): Node[] {
+  // strip leading "> " from each line (skip first line which is [!TYPE])
+  const contentLines = block.lines.slice(1).map(l => l.replace(/^( {0,3})> ?/, ''))
+  const title = ALERT_TITLES[block.meta ?? ''] ?? ''
+  const titleNode: Node = { type: GFMNodeType.AlertTitle, text: title }
+  const children = ctx.parseInline(contentLines.join('\n'))
+  return [{ type: GFMNodeType.Alert, meta: block.meta, children: [titleNode, ...children] }]
+}
+
 function buildMathBlockNode(block: Block): Node[] {
   const formula = block.lines.slice(1, -1).join('\n')
   return [nd(GFMNodeType.MathBlock, { text: formula })]
@@ -272,24 +311,34 @@ function renderFootnoteDefNode(node: Node, ctx: HtmlCtx): string {
   return ctx.renderNodes(node.children ?? [])
 }
 
+function renderAlertNode(node: Node, ctx: HtmlCtx): string {
+  return `<blockquote data-alert="${node.meta ?? ''}">${ctx.renderNodes(node.children ?? [])}</blockquote>`
+}
+
+function renderAlertTitleNode(node: Node): string {
+  return `<p><strong>${node.text ?? ''}</strong></p>`
+}
+
 // ─── Plugin export ────────────────────────────────────────────────────────────
 
 export const blockMakerGFM: BlockMakerPlugin = {
   name: 'gfm',
 
-  blockRules: [tableRule, footnoteDefRule, mathBlockRule],
+  blockRules: [tableRule, footnoteDefRule, alertRule, mathBlockRule],
 
   inlineRules: [taskCheckbox, strikethrough, footnoteRef, mathInline, emoji],
 
   blockProcessors: {
     [GFMBlockType.Table]:       (block, ctx) => buildTableNode(block, ctx),
     [GFMBlockType.FootnoteDef]: (block, ctx) => buildFootnoteDefNode(block, ctx),
+    [GFMBlockType.Alert]:       (block, ctx) => buildAlertNode(block, ctx),
     [GFMBlockType.MathBlock]:   (block)      => buildMathBlockNode(block),
   },
 
   htmlBlock: {
     [GFMBlockType.Table]:       (block, ctx) => ctx.renderNodes(block.markdown ?? []),
     [GFMBlockType.FootnoteDef]: (block, ctx) => ctx.renderNodes(block.markdown ?? []),
+    [GFMBlockType.Alert]:       (block, ctx) => ctx.renderNodes(block.markdown ?? []),
     [GFMBlockType.MathBlock]:   (block, ctx) => ctx.renderNodes(block.markdown ?? []),
   },
 
@@ -301,12 +350,15 @@ export const blockMakerGFM: BlockMakerPlugin = {
     [GFMNodeType.TableRow]:    (node, ctx)  => `<tr>${ctx.renderNodes(node.children ?? [])}</tr>`,
     [GFMNodeType.TableCell]:   (node, ctx)  => { const s = node.meta ? ` style="text-align:${node.meta}"` : ''; return `<td${s}>${ctx.renderNodes(node.children ?? [])}</td>` },
     [GFMNodeType.FootnoteDef]: (node, ctx)  => renderFootnoteDefNode(node, ctx),
+    [GFMNodeType.Alert]:       (node, ctx)  => renderAlertNode(node, ctx),
+    [GFMNodeType.AlertTitle]:  (node)       => renderAlertTitleNode(node),
     [GFMNodeType.Emoji]:       (node)       => node.text ?? '',
   },
 
   blockTypeNames: {
     [GFMBlockType.Table]:       'Table',
     [GFMBlockType.FootnoteDef]: 'FootnoteDef',
+    [GFMBlockType.Alert]:       'Alert',
     [GFMBlockType.MathBlock]:   'MathBlock',
   },
   nodeTypeNames: {
@@ -320,5 +372,7 @@ export const blockMakerGFM: BlockMakerPlugin = {
     [GFMNodeType.MathInline]:  'MathInline',
     [GFMNodeType.MathBlock]:   'MathBlock',
     [GFMNodeType.Emoji]:       'Emoji',
+    [GFMNodeType.Alert]:       'Alert',
+    [GFMNodeType.AlertTitle]:  'AlertTitle',
   },
 }

@@ -28,3 +28,21 @@
 .blockmark input[type="checkbox"] { margin-right: 0.4em; }
 .blockmark .footnote-def { font-size: 0.9em; color: #57606a; margin: 0.4em 0; }
 .blockmark .footnote-ref { font-size: 0.8em; }
+.blockmark blockquote[data-alert] { border-left: 4px solid; border-radius: 0 6px 6px 0; padding: 0.6em 1em; margin: 0.8em 0; color: #24292f; }
+.blockmark blockquote[data-alert] > p:first-child { margin: 0 0 0.4em; font-weight: 600; display: flex; align-items: center; gap: 0.4em; }
+.blockmark blockquote[data-alert] > p:first-child strong { font-weight: 600; }
+.blockmark blockquote[data-alert="note"]      { border-color: #0969da; background: #ddf4ff; }
+.blockmark blockquote[data-alert="note"]      > p:first-child strong { color: #0969da; }
+.blockmark blockquote[data-alert="note"]      > p:first-child::before { content: 'ℹ️'; }
+.blockmark blockquote[data-alert="tip"]       { border-color: #1a7f37; background: #dafbe1; }
+.blockmark blockquote[data-alert="tip"]       > p:first-child strong { color: #1a7f37; }
+.blockmark blockquote[data-alert="tip"]       > p:first-child::before { content: '💡'; }
+.blockmark blockquote[data-alert="important"] { border-color: #7c4dff; background: #fbefff; }
+.blockmark blockquote[data-alert="important"] > p:first-child strong { color: #7c4dff; }
+.blockmark blockquote[data-alert="important"] > p:first-child::before { content: '📣'; }
+.blockmark blockquote[data-alert="warning"]   { border-color: #bf8700; background: #fff8c5; }
+.blockmark blockquote[data-alert="warning"]   > p:first-child strong { color: #bf8700; }
+.blockmark blockquote[data-alert="warning"]   > p:first-child::before { content: '⚠️'; }
+.blockmark blockquote[data-alert="caution"]   { border-color: #cf222e; background: #ffebe9; }
+.blockmark blockquote[data-alert="caution"]   > p:first-child strong { color: #cf222e; }
+.blockmark blockquote[data-alert="caution"]   > p:first-child::before { content: '⛔'; }

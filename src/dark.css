@@ -28,3 +28,21 @@
 .blockmark input[type="checkbox"] { margin-right: 0.4em; }
 .blockmark .footnote-def { font-size: 0.9em; color: #8b949e; margin: 0.4em 0; }
 .blockmark .footnote-ref { font-size: 0.8em; }
+.blockmark blockquote[data-alert] { border-left: 4px solid; border-radius: 0 6px 6px 0; padding: 0.6em 1em; margin: 0.8em 0; color: #e6edf3; }
+.blockmark blockquote[data-alert] > p:first-child { margin: 0 0 0.4em; font-weight: 600; display: flex; align-items: center; gap: 0.4em; }
+.blockmark blockquote[data-alert] > p:first-child strong { font-weight: 600; }
+.blockmark blockquote[data-alert="note"]      { border-color: #1f6feb; background: #051d4d; }
+.blockmark blockquote[data-alert="note"]      > p:first-child strong { color: #58a6ff; }
+.blockmark blockquote[data-alert="note"]      > p:first-child::before { content: 'ℹ️'; }
+.blockmark blockquote[data-alert="tip"]       { border-color: #238636; background: #04260f; }
+.blockmark blockquote[data-alert="tip"]       > p:first-child strong { color: #3fb950; }
+.blockmark blockquote[data-alert="tip"]       > p:first-child::before { content: '💡'; }
+.blockmark blockquote[data-alert="important"] { border-color: #8957e5; background: #1c1044; }
+.blockmark blockquote[data-alert="important"] > p:first-child strong { color: #d2a8ff; }
+.blockmark blockquote[data-alert="important"] > p:first-child::before { content: '📣'; }
+.blockmark blockquote[data-alert="warning"]   { border-color: #9e6a03; background: #271700; }
+.blockmark blockquote[data-alert="warning"]   > p:first-child strong { color: #d29922; }
+.blockmark blockquote[data-alert="warning"]   > p:first-child::before { content: '⚠️'; }
+.blockmark blockquote[data-alert="caution"]   { border-color: #da3633; background: #2d0f0e; }
+.blockmark blockquote[data-alert="caution"]   > p:first-child strong { color: #ff7b72; }
+.blockmark blockquote[data-alert="caution"]   > p:first-child::before { content: '⛔'; }
