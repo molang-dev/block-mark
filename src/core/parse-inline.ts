@@ -160,13 +160,13 @@ export class InlineScanner {
     m = rest.match(/^<([a-zA-Z][a-zA-Z0-9+\-.]{1,31}:\/\/[^\s<>]*)>/)
     if (m) {
       this.pos += m[0].length
-      return { type: NodeType.Link, url: m[1], linkType: LinkType.Url }
+      return { type: NodeType.Link, url: m[1], text: m[1], linkType: LinkType.Url }
     }
     // Email autolink
     m = rest.match(/^<([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})>/)
     if (m) {
       this.pos += m[0].length
-      return { type: NodeType.Link, url: m[1], linkType: LinkType.Email }
+      return { type: NodeType.Link, url: m[1], text: m[1], linkType: LinkType.Email }
     }
     // Raw HTML tag
     m = rest.match(/^<\/?[a-zA-Z][a-zA-Z0-9\-]*(?:\s[^>]*)?\s*\/?>|^<!--[\s\S]*?-->|^<\?[\s\S]*?\?>|^<![A-Z][^>]*>|^<!\[CDATA\[[\s\S]*?\]\]>/)
@@ -183,7 +183,7 @@ export class InlineScanner {
     if (m) {
       const url = m[0].replace(/[.,:;!?)'"]*$/, '')
       this.pos += url.length
-      return { type: NodeType.Link, url, linkType: LinkType.Url }
+      return { type: NodeType.Link, url, text: url, linkType: LinkType.Url }
     }
     return this._text()
   }
@@ -193,7 +193,7 @@ export class InlineScanner {
     const m = this.src.slice(this.pos).match(EMAIL)
     if (m) {
       this.pos += m[0].length
-      return { type: NodeType.Link, url: m[0], linkType: LinkType.Email }
+      return { type: NodeType.Link, url: m[0], text: m[0], linkType: LinkType.Email }
     }
     return this._text()
   }
