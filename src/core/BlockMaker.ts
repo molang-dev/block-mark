@@ -312,12 +312,17 @@ export class BlockMaker {
     // Find affected blocks (expand to whole contiguous range)
     const firstAffected = this._blocks.findIndex(b => b.lineEnd >= row1)
     const lastAffected  = this._blocks.findIndex(b => b.lineStart > row2)
-    const lo = Math.max(0, firstAffected)
-    const hi = lastAffected < 0 ? this._blocks.length - 1 : lastAffected - 1
+    let lo = firstAffected < 0 ? this._blocks.length - 1 : firstAffected
+    let hi = lastAffected  < 0 ? this._blocks.length - 1 : lastAffected - 1
+    // Edit in uncovered gap: expand to surrounding blocks
+    if (lo > hi) {
+      if (hi < 0) hi = lo
+      else        [lo, hi] = [hi, lo]
+    }
 
     // Snap to surrounding section boundaries
-    const secStart = this._blocks[lo].lineStart
-    const secEnd   = this._blocks[hi].lineEnd + lineDelta
+    const secStart = Math.min(this._blocks[lo].lineStart, row1)
+    const secEnd   = Math.max(this._blocks[hi].lineEnd, row2) + lineDelta
 
     // Re-subdivide affected lines
     const affLines = rawLines.slice(secStart, secEnd + 1)
@@ -355,7 +360,18 @@ export class BlockMaker {
     this._rawLines = rawLines  // save updated raw lines
 
     const dirty = this._blocks.filter(b => b.dirty > 0)
-    this._notify(dirty, deletedIds, true)
+    if (dirty.length === 0) {
+      this._notify([], deletedIds, true)
+    } else {
+      let sent = 0, batchIdx = 0
+      while (sent < dirty.length) {
+        const size = this._batchSizes[Math.min(batchIdx++, this._batchSizes.length - 1)]
+        const batch = dirty.slice(sent, sent + size)
+        sent += size
+        const isEnd = sent >= dirty.length
+        this._notify(batch, isEnd ? deletedIds : [], isEnd)
+      }
+    }
   }
 
   allBlocks(): Block[] {
