@@ -2,7 +2,7 @@
 import { shallowRef, ref, computed, watchEffect } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { BlockMaker, blockMakerGFM, blockMakerHtml } from 'mdparser'
+import { BlockMaker, blockMakerGFM, blockMakerHtml } from 'blockmark'
 import lightCssUrl from '../../../src/light.css?url'
 import darkCssUrl  from '../../../src/dark.css?url'
 import BlockCard from './BlockCard.vue'
