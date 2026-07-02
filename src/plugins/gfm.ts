@@ -220,7 +220,7 @@ function renderCheckbox(node: Node): string {
 const taskCheckbox: InlineRule = {
   name: 'gfm-task-checkbox',
   priority: 5,
-  trigger(ch) { return ch === '[' },
+  trigger(ch, next) { return ch === '[' && (next === 'x' || next === 'X' || next === ' ') },
   tryParse(src, pos) {
     const m = src.slice(pos).match(/^\[([xX ])\] /)
     if (!m) return null
