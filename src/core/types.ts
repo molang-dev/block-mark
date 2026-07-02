@@ -6,42 +6,42 @@ export enum DirtyFlag {
   Changed = 2,
 }
 
-// ─── Core block types (1–99) ──────────────────────────────────────────────────
+// ─── Core block types (module 10, block=1) ───────────────────────────────────
 
 export enum BlockType {
-  Heading    = 1,
-  Paragraph  = 2,
-  List       = 3,
-  Code       = 4,
-  Blockquote = 5,
-  Hr         = 6,
-  Html       = 7,
-  Def        = 8,
+  Heading    = 101001,
+  Paragraph  = 101002,
+  List       = 101003,
+  Code       = 101004,
+  Blockquote = 101005,
+  Hr         = 101006,
+  Html       = 101007,
+  Def        = 101008,
 }
 
-// ─── Core node types (1–99) ───────────────────────────────────────────────────
+// ─── Core node types (module 10, node=2) ─────────────────────────────────────
 
 export enum NodeType {
-  Text       = 1,
-  Em         = 2,
-  Strong     = 3,
-  Codespan   = 4,
-  Link       = 5,
-  LinkRef    = 6,
-  Image      = 7,
-  Br         = 8,  // soft line break
-  HardBr     = 9,  // hard line break (2 trailing spaces or \)
-  Escape     = 10, // backslash escape or &entity;
-  Tag        = 11, // raw inline HTML
-  Heading    = 12,
-  Paragraph  = 13,
-  Blockquote = 14,
-  List       = 15,
-  ListItem   = 16,
-  Code       = 17,
-  Hr         = 18,
-  Html       = 19,
-  Def        = 20,
+  Text       = 102001,
+  Em         = 102002,
+  Strong     = 102003,
+  Codespan   = 102004,
+  Link       = 102005,
+  LinkRef    = 102006,
+  Image      = 102007,
+  Br         = 102008,
+  HardBr     = 102009,
+  Escape     = 102010,
+  Tag        = 102011,
+  Heading    = 102012,
+  Paragraph  = 102013,
+  Blockquote = 102014,
+  List       = 102015,
+  ListItem   = 102016,
+  Code       = 102017,
+  Hr         = 102018,
+  Html       = 102019,
+  Def        = 102020,
 }
 
 export enum LinkType {

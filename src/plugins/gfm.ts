@@ -3,17 +3,21 @@ import {
   InlineContext, BlockType, DirtyFlag, BlockProcessorCtx, HtmlCtx,
 } from '../core/types'
 
-// ─── GFM-specific type numbers ───────────────────────────────────────────────
+// ─── GFM-specific type numbers (module 11) ───────────────────────────────────
 
 export enum GFMBlockType {
-  Table       = 100,
-  FootnoteDef = 101,
+  Table       = 111001,
+  FootnoteDef = 111002,
 }
 
 export enum GFMNodeType {
-  Del          = 100,
-  FootnoteRef  = 101,
-  Checkbox     = 102,
+  Del         = 112001,
+  FootnoteRef = 112002,
+  Checkbox    = 112003,
+  TableRow    = 112004,
+  TableCell   = 112005,
+  FootnoteDef = 112006,
+  Table       = 112007,
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -77,7 +81,6 @@ const footnoteDefRule: BlockRule = {
     const m = lines[at]?.match(/^( {0,3})\[\^([^\]]+)\]:\s*(.*)$/)
     if (!m) return null
     const id = m[2].toLowerCase()
-    const firstContent = m[3]
     const W = 4  // GFM footnote continuation indented by 4 spaces
     const collected = [lines[at]]
     let i = at + 1
@@ -126,95 +129,6 @@ const footnoteRef: InlineRule = {
   },
 }
 
-// ─── GFM Table NodeType ───────────────────────────────────────────────────────
-// 103 = TableRow, 104 = TableCell
-
-export const GFM_TABLE_ROW  = 103
-export const GFM_TABLE_CELL = 104
-
-// ─── Block processors ────────────────────────────────────────────────────────
-
-function buildTableNodeFixed(block: Block, ctx: BlockProcessorCtx): Node[] {
-  const lines  = block.lines
-  const align: Array<'left' | 'right' | 'center' | null> = block.meta
-    ? JSON.parse(block.meta)
-    : []
-
-  const buildRow = (line: string, _isHeader: boolean): Node => {
-    const cells = splitTableRow(line)
-    const cellNodes: Node[] = cells.map((cell, i) => ({
-      type: GFM_TABLE_CELL,
-      children: ctx.parseInline(cell),
-      meta: (align[i] ?? undefined) as string | undefined,
-    }))
-    return { type: GFM_TABLE_ROW, children: cellNodes }
-  }
-
-  const headerRow = buildRow(lines[0], true)
-  const bodyRows  = lines.slice(2).map(l => buildRow(l, false))
-
-  return [{
-    type: GFMBlockType.Table,
-    align,
-    children: [headerRow, ...bodyRows],
-  }]
-}
-
-function buildFootnoteDefNode(block: Block, ctx: BlockProcessorCtx): Node[] {
-  const id = block.meta ?? ''
-  const lines = block.lines
-  // First line content after [^id]:
-  const firstLine = lines[0].replace(/^( {0,3})\[\^[^\]]+\]:\s*/, '')
-  const contentLines = [firstLine, ...lines.slice(1)]
-  const children = ctx.parseInline(contentLines.join('\n'))
-  return [{ type: GFMBlockType.FootnoteDef, defId: id, children }]
-}
-
-// ─── HTML renderers ───────────────────────────────────────────────────────────
-
-function renderTable(block: Block, ctx: HtmlCtx): string {
-  const align: Array<'left' | 'right' | 'center' | null> = block.meta
-    ? JSON.parse(block.meta)
-    : []
-  const lines = block.lines
-
-  const cellTag = (cell: string, tag: 'th' | 'td', colIdx: number): string => {
-    const a = align[colIdx]
-    const style = a ? ` style="text-align:${a}"` : ''
-    return `<${tag}${style}>${ctx.renderLines([cell])}</${tag}>`
-  }
-
-  const headerCells = splitTableRow(lines[0] ?? '').map((c, i) => cellTag(c, 'th', i)).join('')
-  const tBody = lines.slice(2).map(line => {
-    const tdCells = splitTableRow(line).map((c, i) => cellTag(c, 'td', i)).join('')
-    return `<tr>${tdCells}</tr>`
-  }).join('')
-
-  return `<table><thead><tr>${headerCells}</tr></thead><tbody>${tBody}</tbody></table>`
-}
-
-function renderFootnoteDef(block: Block, ctx: HtmlCtx): string {
-  const id = ctx.escape(block.meta ?? '')
-  const content = ctx.renderLines(block.lines.slice(1).filter(Boolean))
-  return `<div class="footnote-def" id="fn-${id}"><sup>${id}</sup> ${content}</div>`
-}
-
-// ─── Inline node HTML ─────────────────────────────────────────────────────────
-
-function renderDel(node: Node, ctx: HtmlCtx): string {
-  return `<del>${ctx.renderNodes(node.children ?? [])}</del>`
-}
-
-function renderFootnoteRef(node: Node, ctx: HtmlCtx): string {
-  const id = ctx.escape(node.defId ?? node.text ?? '')
-  return `<sup class="footnote-ref"><a href="#fn-${id}">[${id}]</a></sup>`
-}
-
-function renderCheckbox(node: Node): string {
-  const checked = node.text === 'x' || node.text === 'X'
-  return `<input type="checkbox"${checked ? ' checked' : ''} disabled> `
-}
-
 // ─── Task list checkbox inline rule ─────────────────────────────────────────
 
 const taskCheckbox: InlineRule = {
@@ -231,6 +145,74 @@ const taskCheckbox: InlineRule = {
   },
 }
 
+// ─── Block processors ────────────────────────────────────────────────────────
+
+function buildTableNode(block: Block, ctx: BlockProcessorCtx): Node[] {
+  const lines  = block.lines
+  const align: Array<'left' | 'right' | 'center' | null> = block.meta
+    ? JSON.parse(block.meta)
+    : []
+
+  const buildRow = (line: string): Node => {
+    const cellNodes: Node[] = splitTableRow(line).map((cell, i) => ({
+      type: GFMNodeType.TableCell,
+      children: ctx.parseInline(cell),
+      meta: (align[i] ?? undefined) as string | undefined,
+    }))
+    return { type: GFMNodeType.TableRow, children: cellNodes }
+  }
+
+  return [{
+    type: GFMNodeType.Table,
+    children: [buildRow(lines[0]), ...lines.slice(2).map(l => buildRow(l))],
+  }]
+}
+
+function buildFootnoteDefNode(block: Block, ctx: BlockProcessorCtx): Node[] {
+  const id = block.meta ?? ''
+  const lines = block.lines
+  const firstLine = lines[0].replace(/^( {0,3})\[\^[^\]]+\]:\s*/, '')
+  const contentLines = [firstLine, ...lines.slice(1)]
+  const children = ctx.parseInline(contentLines.join('\n'))
+  return [{ type: GFMNodeType.FootnoteDef, defId: id, children }]
+}
+
+// ─── HTML node renderers ──────────────────────────────────────────────────────
+
+function renderDel(node: Node, ctx: HtmlCtx): string {
+  return `<del>${ctx.renderNodes(node.children ?? [])}</del>`
+}
+
+function renderFootnoteRef(node: Node, ctx: HtmlCtx): string {
+  const id = ctx.escape(node.defId ?? node.text ?? '')
+  return `<sup class="footnote-ref"><a href="#fn-${id}">[${id}]</a></sup>`
+}
+
+function renderCheckbox(node: Node): string {
+  const checked = node.text === 'x' || node.text === 'X'
+  return `<input type="checkbox"${checked ? ' checked' : ''} disabled> `
+}
+
+function renderTableNode(node: Node, ctx: HtmlCtx): string {
+  const [headerRow, ...bodyRows] = node.children ?? []
+  const cell = (nd: Node, tag: 'th' | 'td'): string => {
+    const style = nd.meta ? ` style="text-align:${nd.meta}"` : ''
+    return `<${tag}${style}>${ctx.renderNodes(nd.children ?? [])}</${tag}>`
+  }
+  const header = headerRow
+    ? `<thead><tr>${(headerRow.children ?? []).map(c => cell(c, 'th')).join('')}</tr></thead>`
+    : ''
+  const body = bodyRows.length
+    ? `<tbody>${bodyRows.map(r => `<tr>${(r.children ?? []).map(c => cell(c, 'td')).join('')}</tr>`).join('')}</tbody>`
+    : ''
+  return `<table>${header}${body}</table>`
+}
+
+function renderFootnoteDefNode(node: Node, ctx: HtmlCtx): string {
+  const id = ctx.escape(node.defId ?? '')
+  return `<div class="footnote-def" id="fn-${id}"><sup>${id}</sup> ${ctx.renderNodes(node.children ?? [])}</div>`
+}
+
 // ─── Plugin export ────────────────────────────────────────────────────────────
 
 export const blockMakerGFM: BlockMakerPlugin = {
@@ -241,19 +223,23 @@ export const blockMakerGFM: BlockMakerPlugin = {
   inlineRules: [taskCheckbox, strikethrough, footnoteRef],
 
   blockProcessors: {
-    [GFMBlockType.Table]:       (block, ctx) => buildTableNodeFixed(block, ctx),
+    [GFMBlockType.Table]:       (block, ctx) => buildTableNode(block, ctx),
     [GFMBlockType.FootnoteDef]: (block, ctx) => buildFootnoteDefNode(block, ctx),
   },
 
   htmlBlock: {
-    [GFMBlockType.Table]:       (block, ctx) => renderTable(block, ctx),
-    [GFMBlockType.FootnoteDef]: (block, ctx) => renderFootnoteDef(block, ctx),
+    [GFMBlockType.Table]:       (block, ctx) => ctx.renderNodes(block.markdown ?? []),
+    [GFMBlockType.FootnoteDef]: (block, ctx) => ctx.renderNodes(block.markdown ?? []),
   },
 
   htmlNode: {
     [GFMNodeType.Del]:         (node, ctx) => renderDel(node, ctx),
     [GFMNodeType.FootnoteRef]: (node, ctx) => renderFootnoteRef(node, ctx),
     [GFMNodeType.Checkbox]:    (node)       => renderCheckbox(node),
+    [GFMNodeType.Table]:       (node, ctx)  => renderTableNode(node, ctx),
+    [GFMNodeType.TableRow]:    (node, ctx)  => `<tr>${ctx.renderNodes(node.children ?? [])}</tr>`,
+    [GFMNodeType.TableCell]:   (node, ctx)  => { const s = node.meta ? ` style="text-align:${node.meta}"` : ''; return `<td${s}>${ctx.renderNodes(node.children ?? [])}</td>` },
+    [GFMNodeType.FootnoteDef]: (node, ctx)  => renderFootnoteDefNode(node, ctx),
   },
 
   blockTypeNames: {
@@ -264,7 +250,9 @@ export const blockMakerGFM: BlockMakerPlugin = {
     [GFMNodeType.Del]:         'Del',
     [GFMNodeType.FootnoteRef]: 'FootnoteRef',
     [GFMNodeType.Checkbox]:    'Checkbox',
-    [GFM_TABLE_ROW]:           'TableRow',
-    [GFM_TABLE_CELL]:          'TableCell',
+    [GFMNodeType.TableRow]:    'TableRow',
+    [GFMNodeType.TableCell]:   'TableCell',
+    [GFMNodeType.FootnoteDef]: 'FootnoteDef',
+    [GFMNodeType.Table]:       'Table',
   },
 }
