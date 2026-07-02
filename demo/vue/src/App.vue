@@ -2,9 +2,7 @@
 import { shallowRef, ref, computed, watchEffect } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { Parser, render_html } from 'mdparser'
-// import 'mdparser/light.css'
-// import 'mdparser/dark.css'
+import { BlockMaker, blockMakerGFM, blockMakerHtml } from 'mdparser'
 import lightCssUrl from '../../../src/light.css?url'
 import darkCssUrl  from '../../../src/dark.css?url'
 import BlockCard from './BlockCard.vue'
@@ -23,7 +21,7 @@ function charToRowCol(text, charPos) {
 }
 
 // 一次性初始化：<script setup> 顶层只跑一次，无需 useRef 守卫
-const p = new Parser()
+const p = new BlockMaker().use(blockMakerGFM).use(blockMakerHtml)
 
 const mdContent  = ref(testMdRaw)
 const cursorLine = ref(0)
@@ -45,17 +43,16 @@ const blocks = shallowRef(p.allBlocks())
 
 let prevContent = testMdRaw
 
-// 先注册回调，再 read，让初始解析也走 onUpdate
-p.onUpdate((_changed, isEnd) => {
-  console.log('onUpdate: ', _changed, 'onUpdate end')
+// 先注册回调，再 parse，让初始解析也走 changed
+p.changed((_changed, isEnd) => {
   if (!isEnd) return
   blocks.value = [...p.allBlocks()]   // 浅拷贝：引用变化让 DynamicScroller 感知更新
 })
 
-p.read(testMdRaw)
+p.parse(testMdRaw)
 
 function parse() {
-  p.read(mdContent.value)
+  p.parse(mdContent.value)
   prevContent = mdContent.value
 }
 
@@ -92,7 +89,7 @@ function handleCursor(e) {
 }
 
 const previewHtml = computed(() =>
-  blocks.value.map(b => render_html(b.markdown)).join('')
+  blocks.value.map(b => b.html ?? '').join('')
 )
 
 const matchedBlock = computed(() => {

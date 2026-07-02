@@ -1,31 +1,30 @@
-/* class-based: add .dark to the container for manual control */
-.md-preview.dark { color: #e6edf3; background: #0d1117; }
-.md-preview.dark h1, .md-preview.dark h2 { border-bottom-color: #21262d; }
-.md-preview.dark h6  { color: #8b949e; }
-.md-preview.dark a   { color: #58a6ff; }
-.md-preview.dark del { color: #8b949e; }
-.md-preview.dark code { background: #161b22; color: #e6edf3; }
-.md-preview.dark pre  { background: #161b22; }
-.md-preview.dark pre code { color: #e6edf3; }
-.md-preview.dark blockquote { border-left-color: #3d444d; color: #8b949e; }
-.md-preview.dark th, .md-preview.dark td { border-color: #30363d; }
-.md-preview.dark th { background: #161b22; }
-.md-preview.dark tr:nth-child(even) td { background: #161b22; }
-.md-preview.dark hr { border-top-color: #30363d; }
-
-/* auto: follows system preference */
-@media (prefers-color-scheme: dark) {
-  .md-preview { color: #e6edf3; background: #0d1117; }
-  .md-preview h1, .md-preview h2 { border-bottom-color: #21262d; }
-  .md-preview h6  { color: #8b949e; }
-  .md-preview a   { color: #58a6ff; }
-  .md-preview del { color: #8b949e; }
-  .md-preview code { background: #161b22; color: #e6edf3; }
-  .md-preview pre  { background: #161b22; }
-  .md-preview pre code { color: #e6edf3; }
-  .md-preview blockquote { border-left-color: #3d444d; color: #8b949e; }
-  .md-preview th, .md-preview td { border-color: #30363d; }
-  .md-preview th { background: #161b22; }
-  .md-preview tr:nth-child(even) td { background: #161b22; }
-  .md-preview hr { border-top-color: #30363d; }
-}
+.blockmark { font-family: system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 1.7; color: #e6edf3; background: #0d1117; word-break: break-word; }
+.blockmark h1, .blockmark h2, .blockmark h3,
+.blockmark h4, .blockmark h5, .blockmark h6 { margin: 1em 0 0.4em; font-weight: 600; line-height: 1.3; }
+.blockmark h1 { font-size: 2em;     border-bottom: 1px solid #21262d; padding-bottom: 0.2em; }
+.blockmark h2 { font-size: 1.5em;   border-bottom: 1px solid #21262d; padding-bottom: 0.2em; }
+.blockmark h3 { font-size: 1.25em; }
+.blockmark h4 { font-size: 1em; }
+.blockmark h5 { font-size: 0.875em; }
+.blockmark h6 { font-size: 0.85em;  color: #8b949e; }
+.blockmark p  { margin: 0.6em 0; }
+.blockmark a  { color: #58a6ff; text-decoration: none; }
+.blockmark a:hover { text-decoration: underline; }
+.blockmark strong { font-weight: 600; }
+.blockmark em     { font-style: italic; }
+.blockmark del    { color: #8b949e; }
+.blockmark code { font-family: Menlo, Consolas, monospace; font-size: 0.9em; background: #161b22; color: #e6edf3; padding: 0.15em 0.4em; border-radius: 4px; }
+.blockmark pre  { background: #161b22; border-radius: 6px; padding: 14px 16px; overflow-x: auto; margin: 0.8em 0; }
+.blockmark pre code { background: none; padding: 0; font-size: 13px; }
+.blockmark blockquote { margin: 0.8em 0; padding: 0 1em; border-left: 4px solid #3d444d; color: #8b949e; }
+.blockmark ul, .blockmark ol { margin: 0.5em 0; padding-left: 2em; }
+.blockmark li { margin: 0.2em 0; }
+.blockmark table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
+.blockmark th, .blockmark td { border: 1px solid #30363d; padding: 6px 12px; text-align: left; }
+.blockmark th { background: #161b22; font-weight: 600; }
+.blockmark tbody tr:nth-child(even) td { background: #161b22; }
+.blockmark hr  { border: none; border-top: 2px solid #30363d; margin: 1.2em 0; }
+.blockmark img { max-width: 100%; border-radius: 4px; }
+.blockmark input[type="checkbox"] { margin-right: 0.4em; }
+.blockmark .footnote-def { font-size: 0.9em; color: #8b949e; margin: 0.4em 0; }
+.blockmark .footnote-ref { font-size: 0.8em; }

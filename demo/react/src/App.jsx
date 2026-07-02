@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { VariableSizeList } from 'react-window'
-import { Parser, render_html } from 'mdparser'
+import { BlockMaker, blockMakerGFM, blockMakerHtml } from 'mdparser'
 import lightCssUrl from '../../../src/light.css?url'
 import darkCssUrl  from '../../../src/dark.css?url'
 import BlockCard from './BlockCard.jsx'
@@ -37,15 +37,14 @@ export default function App() {
   // 组件内一次性初始化（useRef 懒 init，StrictMode 安全）
   const initRef = useRef(null)
   if (!initRef.current) {
-    const p = new Parser()
+    const p = new BlockMaker().use(blockMakerGFM).use(blockMakerHtml)
     const content = loadMDFile('../test/test.md')
-    p.onUpdate((_changed, isEnd) => {
-      console.log('onUpdate: ', _changed, 'onUpdate end')
+    p.changed((_changed, isEnd) => {
       if (!isEnd) return
       setRevRef.current?.()
       listRef.current?.resetAfterIndex(0)
     })
-    p.read(content)   // 触发 onUpdate；此时 setRevRef 还是 null，跳过 setState
+    p.parse(content)   // 触发 changed；此时 setRevRef 还是 null，跳过 setState
     initRef.current = { parser: p, content }
     prevContentRef.current = content
   }
@@ -74,7 +73,7 @@ export default function App() {
 
   const parse = useCallback(() => {
     const p = initRef.current.parser
-    p.read(mdContent)
+    p.parse(mdContent)
     prevContentRef.current = mdContent
   }, [mdContent])
 
@@ -112,7 +111,7 @@ export default function App() {
   }, [])
 
   const previewHtml = useMemo(() =>
-    blocks.map(b => render_html(b.markdown)).join(''),
+    blocks.map(b => b.html ?? '').join(''),
     [rev]
   )
 
