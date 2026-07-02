@@ -185,7 +185,7 @@ function renderDel(node: Node, ctx: HtmlCtx): string {
 
 function renderFootnoteRef(node: Node, ctx: HtmlCtx): string {
   const id = ctx.escape(node.defId ?? node.text ?? '')
-  return `<sup class="footnote-ref"><a href="#fn-${id}">[${id}]</a></sup>`
+  return `<sup class="footnote-ref"><a href="#bmd-fn-${id}">[${id}]</a></sup>`
 }
 
 function renderCheckbox(node: Node): string {
@@ -209,8 +209,7 @@ function renderTableNode(node: Node, ctx: HtmlCtx): string {
 }
 
 function renderFootnoteDefNode(node: Node, ctx: HtmlCtx): string {
-  const id = ctx.escape(node.defId ?? '')
-  return `<div class="footnote-def" id="fn-${id}"><sup>${id}</sup> ${ctx.renderNodes(node.children ?? [])}</div>`
+  return ctx.renderNodes(node.children ?? [])
 }
 
 // ─── Plugin export ────────────────────────────────────────────────────────────
