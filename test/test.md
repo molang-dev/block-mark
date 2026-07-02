@@ -129,7 +129,7 @@ node index.js
 ## 8. 链接
 
 ### 标准链接
-    [访问 GitHub](https://github.com)
+[访问 GitHub](https://github.com)
 
 ### 自动链接（GFM 扩展）
 https://www.example.com
@@ -292,9 +292,9 @@ ___
 ## **加粗的标题** 和 *斜体标题*
 
 ### 列表内包含代码和链接
-   - 列表项一，包含 **粗体** 和 [链接](https://example.com)
-- 列表项二，包含行内代码 `code`
-- 列表项三，包含图片 ![图标](https://example.com/icon.png)
+   - 列表项一
+- 列表项二
+  - 列表项三
 
 ### 表格内包含格式化
    | 名称 | 描述 | 代码 |
