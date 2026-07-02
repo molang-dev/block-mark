@@ -8,6 +8,7 @@ import {
 export enum GFMBlockType {
   Table       = 111001,
   FootnoteDef = 111002,
+  MathBlock   = 111003,
 }
 
 export enum GFMNodeType {
@@ -18,6 +19,8 @@ export enum GFMNodeType {
   TableCell   = 112005,
   FootnoteDef = 112006,
   Table       = 112007,
+  MathInline  = 112008,
+  MathBlock   = 112009,
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -96,6 +99,24 @@ const footnoteDefRule: BlockRule = {
   },
 }
 
+// ─── G-B-03  Display Math $$ ─────────────────────────────────────────────────
+
+const mathBlockRule: BlockRule = {
+  name: 'gfm-math-block',
+  priority: 34,
+  tryCollect(lines, at) {
+    if (!/^( {0,3})\$\$$/.test(lines[at] ?? '')) return null
+    const collected = [lines[at]]
+    let i = at + 1
+    while (i < lines.length) {
+      const l = lines[i]
+      collected.push(l); i++
+      if (/^( {0,3})\$\$$/.test(l)) break
+    }
+    return collected.length >= 2 ? bl(GFMBlockType.MathBlock, collected) : null
+  },
+}
+
 // ─── G-I-01  Strikethrough ~~ ────────────────────────────────────────────────
 
 const strikethrough: InlineRule = {
@@ -129,6 +150,23 @@ const footnoteRef: InlineRule = {
   },
 }
 
+// ─── G-I-05  Inline Math $ ───────────────────────────────────────────────────
+
+const mathInline: InlineRule = {
+  name: 'gfm-math-inline',
+  priority: 20,
+  trigger(ch, next) { return ch === '$' && next !== '$' && next !== ' ' },
+  tryParse(src, pos) {
+    if (src[pos] !== '$' || src[pos + 1] === '$') return null
+    const rest = src.slice(pos + 1)
+    const end = rest.indexOf('$')
+    if (end < 0) return null
+    const inner = rest.slice(0, end)
+    if (!inner.trim() || inner[0] === ' ' || inner[inner.length - 1] === ' ' || inner.includes('\n')) return null
+    return { node: nd(GFMNodeType.MathInline, { text: inner }), length: end + 2 }
+  },
+}
+
 // ─── Task list checkbox inline rule ─────────────────────────────────────────
 
 const taskCheckbox: InlineRule = {
@@ -146,6 +184,11 @@ const taskCheckbox: InlineRule = {
 }
 
 // ─── Block processors ────────────────────────────────────────────────────────
+
+function buildMathBlockNode(block: Block): Node[] {
+  const formula = block.lines.slice(1, -1).join('\n')
+  return [nd(GFMNodeType.MathBlock, { text: formula })]
+}
 
 function buildTableNode(block: Block, ctx: BlockProcessorCtx): Node[] {
   const lines  = block.lines
@@ -217,18 +260,20 @@ function renderFootnoteDefNode(node: Node, ctx: HtmlCtx): string {
 export const blockMakerGFM: BlockMakerPlugin = {
   name: 'gfm',
 
-  blockRules: [tableRule, footnoteDefRule],
+  blockRules: [tableRule, footnoteDefRule, mathBlockRule],
 
-  inlineRules: [taskCheckbox, strikethrough, footnoteRef],
+  inlineRules: [taskCheckbox, strikethrough, footnoteRef, mathInline],
 
   blockProcessors: {
     [GFMBlockType.Table]:       (block, ctx) => buildTableNode(block, ctx),
     [GFMBlockType.FootnoteDef]: (block, ctx) => buildFootnoteDefNode(block, ctx),
+    [GFMBlockType.MathBlock]:   (block)      => buildMathBlockNode(block),
   },
 
   htmlBlock: {
     [GFMBlockType.Table]:       (block, ctx) => ctx.renderNodes(block.markdown ?? []),
     [GFMBlockType.FootnoteDef]: (block, ctx) => ctx.renderNodes(block.markdown ?? []),
+    [GFMBlockType.MathBlock]:   (block, ctx) => ctx.renderNodes(block.markdown ?? []),
   },
 
   htmlNode: {
@@ -244,6 +289,7 @@ export const blockMakerGFM: BlockMakerPlugin = {
   blockTypeNames: {
     [GFMBlockType.Table]:       'Table',
     [GFMBlockType.FootnoteDef]: 'FootnoteDef',
+    [GFMBlockType.MathBlock]:   'MathBlock',
   },
   nodeTypeNames: {
     [GFMNodeType.Del]:         'Del',
@@ -253,5 +299,7 @@ export const blockMakerGFM: BlockMakerPlugin = {
     [GFMNodeType.TableCell]:   'TableCell',
     [GFMNodeType.FootnoteDef]: 'FootnoteDef',
     [GFMNodeType.Table]:       'Table',
+    [GFMNodeType.MathInline]:  'MathInline',
+    [GFMNodeType.MathBlock]:   'MathBlock',
   },
 }

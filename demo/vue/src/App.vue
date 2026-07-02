@@ -2,8 +2,10 @@
 import { shallowRef, ref, computed, watchEffect, nextTick } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { BlockMaker, blockMakerGFM, blockMakerHtml, blockMakerCode, blockMakerMermaid } from 'blockmark'
+import { BlockMaker, blockMakerGFM, blockMakerHtml, blockMakerCode, blockMakerMermaid, blockMakerMath } from 'blockmark'
 import mermaid from 'mermaid'
+import renderMathInElement from 'katex/contrib/auto-render'
+import 'katex/dist/katex.min.css'
 import hljs from 'highlight.js'
 import hljsLightUrl from 'highlight.js/styles/github.css?url'
 import hljsDarkUrl  from 'highlight.js/styles/github-dark.css?url'
@@ -12,7 +14,7 @@ import darkCssUrl  from '../../../src/dark.css?url'
 import BlockCard from './BlockCard.vue'
 import './App.css'
 // import './md-custom.css'
-import testMdRaw from '../../../mytest/test.md?raw'
+import testMdRaw from '../../../test/test.md?raw'
 
 function cursorLineNumber(text, selectionStart) {
   return text.slice(0, selectionStart).split('\n').length - 1
@@ -34,6 +36,7 @@ const highlight = (code, lang) =>
 const p = new BlockMaker({ toc: true })
   .use(blockMakerGFM)
   .use(blockMakerMermaid)
+  .use(blockMakerMath)
   .use(blockMakerHtml)
   .use(blockMakerCode(highlight))
 
@@ -70,7 +73,17 @@ let prevContent = testMdRaw
 p.changed((_changed, isEnd) => {
   if (!isEnd) return
   blocks.value = [...p.allBlocks()]   // 浅拷贝：引用变化让 DynamicScroller 感知更新
-  nextTick(() => mermaid.run())
+  nextTick(() => {
+    mermaid.run()
+    const el = document.querySelector('.preview-content')
+    if (el) renderMathInElement(el, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '$',  right: '$',  display: false },
+      ],
+      throwOnError: false,
+    })
+  })
 })
 
 p.parse(testMdRaw)
