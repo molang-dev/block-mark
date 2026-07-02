@@ -399,3 +399,11 @@ npm test         # vitest run（41 个测试用例）
 - 每次 `_runHtmlPass()` 后重建 TOC：全部 Heading 的 html 注入 `id="bmd-h-{index}"`，TOC html 用栈算法按 h1/h2/h3 层级生成嵌套 `<ul>`
 - `changed` 回调在 `isEnd: true` 时传 `allBlocks()`，TOC block 对调用方可见
 - TOC html 无 className，结构：`<nav><ul><li><a href="#bmd-h-N">text</a><ul>...</ul></li></ul></nav>`
+
+### Mermaid 图表插件
+
+- 新建 `blockMakerMermaid` 插件（模块 ID 12），独立于 `blockMakerCode`
+- `MermaidBlockType.Diagram = 121001`；block rule priority 34（高于 fencedCode=35），专门拦截 ` ```mermaid ` fence
+- `htmlBlock` 输出 `<pre class="mermaid">${esc(code)}</pre>`，由客户端 Mermaid.js 接管渲染
+- `blockMakerCode` 的 highlight 签名改为 `(code, lang) => string | null`，返回 `null` 时 fallback plain text（不再 autoDetect）
+- Demo：`mermaid.initialize({ startOnLoad: false })`，`changed` 回调后 `nextTick(() => mermaid.run())` 驱动渲染
