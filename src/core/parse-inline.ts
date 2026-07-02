@@ -345,6 +345,7 @@ export class InlineScanner {
     while (this.pos < this.src.length) {
       const c = this.src[this.pos]
       if (specials.has(c)) break
+      if (this.extraRules.some(r => r.trigger(c, this.src[this.pos + 1] ?? ''))) break
       // Bare autolink triggers
       const rest = this.src.slice(this.pos)
       if (/^(?:https?|ftp):\/\//.test(rest) || /^www\.[a-zA-Z]/.test(rest)) break
