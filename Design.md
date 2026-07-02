@@ -458,6 +458,12 @@ npm test         # vitest run（41 个测试用例）
 - dirty=0（Clean）/ dirty=1（Shifted）的 block 元素不触碰，已渲染的 mermaid SVG / katex 保持不变
 - TOC block（id=0）不经 changedBlocks，在步骤③ 中每次同步 html
 
+### update() 渐进式通知
+
+- `update()` 产生的 dirty blocks 按 `batchSizes` 分批调用 `changed()`，行为与 `parseFile()` 一致
+- 最后一批 `isEnd=true`，中间批次 `isEnd=false`；`deletedIds` 仅随最后一批下发
+- 单次 `update()` 产生 N 个 dirty blocks、`batchSizes=[a,b,c]`：触发顺序为 a、b、c、c、…、remainder，例如 10 个 dirty + `[1,2,3]` → 触发序列 1,2,3,3,1
+
 ### GFM Alert 警告块
 
 - `GFMBlockType.Alert=111004`，`GFMNodeType.Alert=112011`，`GFMNodeType.AlertTitle=112012`
