@@ -3,7 +3,7 @@ const props = defineProps({
   block: Object,
 })
 
-const TYPE_LABELS = { 1: 'H', 2: 'P', 3: 'L', 4: 'C', 5: 'T', 6: 'Q', 7: 'R', 8: '♢' }
+const TYPE_LABELS = { 1: 'H', 2: 'P', 3: 'L', 4: 'C', 5: 'Q', 6: 'R', 7: '⌗', 8: '♢', 100: 'T', 101: 'FN' }
 </script>
 
 <template>

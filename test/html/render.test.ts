@@ -22,21 +22,21 @@ function renderGfm(md: string): string {
 // ─── Headings ────────────────────────────────────────────────────────────────
 
 describe('render heading', () => {
-  it('h1', () => expect(render('# Hello')).toContain('<h1 class="bmk-h1">'))
-  it('h2', () => expect(render('## Sub')).toContain('<h2 class="bmk-h2">'))
-  it('h6', () => expect(render('###### Deep')).toContain('<h6 class="bmk-h6">'))
-  it('setext h1', () => expect(render('Title\n=====')).toContain('<h1 class="bmk-h1">'))
-  it('content inside', () => expect(render('# Hello *world*')).toContain('<em class="bmk-em">world</em>'))
+  it('h1', () => expect(render('# Hello')).toContain('<h1>'))
+  it('h2', () => expect(render('## Sub')).toContain('<h2>'))
+  it('h6', () => expect(render('###### Deep')).toContain('<h6>'))
+  it('setext h1', () => expect(render('Title\n=====')).toContain('<h1>'))
+  it('content inside', () => expect(render('# Hello *world*')).toContain('<em>world</em>'))
 })
 
 // ─── Paragraph ───────────────────────────────────────────────────────────────
 
 describe('render paragraph', () => {
-  it('wraps in <p>', () => expect(render('hello')).toBe('<p class="bmk-p">hello</p>'))
+  it('wraps in <p>', () => expect(render('hello')).toBe('<p>hello</p>'))
   it('multiple paragraphs', () => {
     const html = render('para1\n\npara2')
-    expect(html).toContain('<p class="bmk-p">para1</p>')
-    expect(html).toContain('<p class="bmk-p">para2</p>')
+    expect(html).toContain('<p>para1</p>')
+    expect(html).toContain('<p>para2</p>')
   })
   it('inline HTML passes through', () => expect(render('<b>text</b>')).toContain('<b>'))
 })
@@ -44,9 +44,9 @@ describe('render paragraph', () => {
 // ─── Emphasis ────────────────────────────────────────────────────────────────
 
 describe('render inline emphasis', () => {
-  it('*em*', () => expect(render('*em*')).toContain('<em class="bmk-em">em</em>'))
-  it('**strong**', () => expect(render('**strong**')).toContain('<strong class="bmk-strong">strong</strong>'))
-  it('`code`', () => expect(render('`code`')).toContain('<code class="bmk-codespan">code</code>'))
+  it('*em*', () => expect(render('*em*')).toContain('<em>em</em>'))
+  it('**strong**', () => expect(render('**strong**')).toContain('<strong>strong</strong>'))
+  it('`code`', () => expect(render('`code`')).toContain('<code>code</code>'))
 })
 
 // ─── Code Block ──────────────────────────────────────────────────────────────
@@ -54,8 +54,8 @@ describe('render inline emphasis', () => {
 describe('render code', () => {
   it('fenced code with lang', () => {
     const html = render('```js\nconsole.log(1)\n```')
-    expect(html).toContain('<pre class="bmk-pre">')
-    expect(html).toContain('<code class="bmk-code language-js">')
+    expect(html).toContain('<pre>')
+    expect(html).toContain('<code class="language-js">')
     expect(html).toContain('console.log(1)')
   })
 
@@ -67,7 +67,7 @@ describe('render code', () => {
 
   it('indented code', () => {
     const html = render('    code here')
-    expect(html).toContain('<pre class="bmk-pre">')
+    expect(html).toContain('<pre>')
     expect(html).toContain('code here')
   })
 })
@@ -76,12 +76,12 @@ describe('render code', () => {
 
 describe('render blockquote', () => {
   it('wraps in <blockquote>', () => {
-    expect(render('> quote')).toContain('<blockquote class="bmk-blockquote">')
+    expect(render('> quote')).toContain('<blockquote>')
   })
 
   it('nested paragraph inside', () => {
     const html = render('> paragraph text')
-    expect(html).toContain('<p class="bmk-p">')
+    expect(html).toContain('<p>')
   })
 })
 
@@ -90,31 +90,31 @@ describe('render blockquote', () => {
 describe('render list', () => {
   it('unordered list', () => {
     const html = render('- a\n- b')
-    expect(html).toContain('<ul class="bmk-ul">')
-    expect(html).toContain('<li class="bmk-li">')
+    expect(html).toContain('<ul>')
+    expect(html).toContain('<li>')
   })
 
   it('ordered list', () => {
     const html = render('1. first\n2. second')
-    expect(html).toContain('<ol class="bmk-ol">')
+    expect(html).toContain('<ol>')
   })
 
   it('tight list: no <p> inside items', () => {
     const html = render('- a\n- b')
-    expect(html).not.toMatch(/<li[^>]*><p/)
+    expect(html).not.toMatch(/<li><p/)
   })
 
   it('loose list: <p> inside items', () => {
     const html = render('- a\n\n- b')
-    expect(html).toMatch(/<li[^>]*><p/)
+    expect(html).toMatch(/<li><p/)
   })
 })
 
 // ─── HR ──────────────────────────────────────────────────────────────────────
 
 describe('render hr', () => {
-  it('---', () => expect(render('---')).toContain('<hr class="bmk-hr">'))
-  it('***', () => expect(render('***')).toContain('<hr class="bmk-hr">'))
+  it('---', () => expect(render('---')).toContain('<hr>'))
+  it('***', () => expect(render('***')).toContain('<hr>'))
 })
 
 // ─── Links ───────────────────────────────────────────────────────────────────
@@ -122,13 +122,13 @@ describe('render hr', () => {
 describe('render link', () => {
   it('inline link', () => {
     const html = render('[text](https://example.com)')
-    expect(html).toContain('<a class="bmk-a" href="https://example.com">')
+    expect(html).toContain('<a href="https://example.com">')
     expect(html).toContain('text</a>')
   })
 
   it('image', () => {
     const html = render('![alt](img.png)')
-    expect(html).toContain('<img class="bmk-img" src="img.png" alt="alt">')
+    expect(html).toContain('<img src="img.png" alt="alt">')
   })
 
   it('autolink <url>', () => {
@@ -165,19 +165,19 @@ describe('GFM HTML rendering', () => {
     const html = renderGfm(`| A | B |
 |---|---|
 | 1 | 2 |`)
-    expect(html).toContain('<table class="bmk-table">')
+    expect(html).toContain('<table>')
     expect(html).toContain('<th')
     expect(html).toContain('<td')
   })
 
   it('renders strikethrough', () => {
     const html = renderGfm('~~del~~')
-    expect(html).toContain('<del class="bmk-del">')
+    expect(html).toContain('<del>')
   })
 
   it('renders footnote ref', () => {
     const html = renderGfm('[^1]')
-    expect(html).toContain('bmk-footnote-ref')
+    expect(html).toContain('footnote-ref')
   })
 
   it('renders task checkbox checked', () => {
@@ -194,7 +194,7 @@ describe('GFM HTML rendering', () => {
 
   it('renders footnote def', () => {
     const html = renderGfm('[^1]: My footnote')
-    expect(html).toContain('bmk-footnote-def')
+    expect(html).toContain('footnote-def')
     expect(html).toContain('id="fn-1"')
   })
 })
@@ -203,7 +203,6 @@ describe('GFM HTML rendering', () => {
 
 describe('XSS safety', () => {
   it('escapes < > in plain text paragraphs', () => {
-    // Plain text (not recognized as HTML block/tag) is escaped
     const html = render('a < b > c')
     expect(html).toContain('&lt;')
     expect(html).not.toContain('< b')
@@ -216,7 +215,6 @@ describe('XSS safety', () => {
   })
 
   it('HTML blocks pass through as-is (CommonMark spec)', () => {
-    // <script> starts an HTML block (type 1) — CommonMark passes it through
     const html = render('<script>alert(1)</script>')
     expect(html).toContain('<script>')
   })

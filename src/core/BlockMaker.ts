@@ -1,4 +1,4 @@
-import { openSync, readSync, closeSync } from 'node:fs'
+import type { openSync as _OpenSync, readSync as _ReadSync, closeSync as _CloseSync } from 'node:fs'
 import {
   Block, BlockMakerOptions, BlockMakerPlugin, BlockRule, InlineRule,
   HtmlCtx, ChangedCallback, DirtyFlag, BlockContext, Node,
@@ -206,6 +206,16 @@ export class BlockMaker {
   }
 
   parseFile(filename: string): this {
+    if (typeof process === 'undefined' || !process.versions?.node) {
+      throw new Error('BlockMaker.parseFile() is only available in Node.js. Use parse(content) in browser environments.')
+    }
+    // Lazy-load node:fs — avoids Vite externalising the module at build time.
+    // String split prevents static analysis by bundlers.
+    const { openSync, readSync, closeSync } = require('node' + ':fs') as {
+      openSync:  typeof _OpenSync
+      readSync:  typeof _ReadSync
+      closeSync: typeof _CloseSync
+    }
     this._reset()
     const CHUNK = 64 * 1024
     const fd = openSync(filename, 'r')

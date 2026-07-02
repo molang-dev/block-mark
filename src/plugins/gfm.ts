@@ -187,32 +187,32 @@ function renderTable(block: Block, ctx: HtmlCtx): string {
   const headerCells = splitTableRow(lines[0] ?? '').map((c, i) => cellTag(c, 'th', i)).join('')
   const tBody = lines.slice(2).map(line => {
     const tdCells = splitTableRow(line).map((c, i) => cellTag(c, 'td', i)).join('')
-    return `<tr class="bmk-tr">${tdCells}</tr>`
+    return `<tr>${tdCells}</tr>`
   }).join('')
 
-  return `<table class="bmk-table"><thead class="bmk-thead"><tr class="bmk-tr">${headerCells}</tr></thead><tbody class="bmk-tbody">${tBody}</tbody></table>`
+  return `<table><thead><tr>${headerCells}</tr></thead><tbody>${tBody}</tbody></table>`
 }
 
 function renderFootnoteDef(block: Block, ctx: HtmlCtx): string {
   const id = ctx.escape(block.meta ?? '')
   const content = ctx.renderLines(block.lines.slice(1).filter(Boolean))
-  return `<div class="bmk-footnote-def" id="fn-${id}"><sup>${id}</sup> ${content}</div>`
+  return `<div class="footnote-def" id="fn-${id}"><sup>${id}</sup> ${content}</div>`
 }
 
 // ─── Inline node HTML ─────────────────────────────────────────────────────────
 
 function renderDel(node: Node, ctx: HtmlCtx): string {
-  return `<del class="bmk-del">${ctx.renderNodes(node.children ?? [])}</del>`
+  return `<del>${ctx.renderNodes(node.children ?? [])}</del>`
 }
 
 function renderFootnoteRef(node: Node, ctx: HtmlCtx): string {
   const id = ctx.escape(node.defId ?? node.text ?? '')
-  return `<sup class="bmk-footnote-ref"><a href="#fn-${id}">[${id}]</a></sup>`
+  return `<sup class="footnote-ref"><a href="#fn-${id}">[${id}]</a></sup>`
 }
 
 function renderCheckbox(node: Node): string {
   const checked = node.text === 'x' || node.text === 'X'
-  return `<input class="bmk-checkbox" type="checkbox"${checked ? ' checked' : ''} disabled> `
+  return `<input type="checkbox"${checked ? ' checked' : ''} disabled> `
 }
 
 // ─── Task list checkbox inline rule ─────────────────────────────────────────
