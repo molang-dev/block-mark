@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react'
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { VariableSizeList } from 'react-window'
 import { Parser, render_html } from 'mdparser'
-import '../../../src/light.css'
-import '../../../src/dark.css'
+import lightCssUrl from '../../../src/light.css?url'
+import darkCssUrl  from '../../../src/dark.css?url'
 import BlockCard from './BlockCard.jsx'
 import './App.css'
 import './md-custom.css'
@@ -54,6 +54,17 @@ export default function App() {
   const [rev, setRev] = useState(0)
   const [cursorLine, setCursorLine] = useState(0)
   const [darkMode, setDarkMode] = useState(false)
+
+  useEffect(() => {
+    let link = document.getElementById('blockmark-theme')
+    if (!link) {
+      link = document.createElement('link')
+      link.id  = 'blockmark-theme'
+      link.rel = 'stylesheet'
+      document.head.appendChild(link)
+    }
+    link.href = darkMode ? darkCssUrl : lightCssUrl
+  }, [darkMode])
 
   // 每次 render 挂上最新的 rev setter（stable ref，无副作用）
   setRevRef.current = () => setRev(r => r + 1)
@@ -162,7 +173,7 @@ export default function App() {
               {darkMode ? 'Light' : 'Dark'}
             </button>
           </div>
-          <div className={`preview-content md-preview${darkMode ? ' dark' : ''}`} dangerouslySetInnerHTML={{ __html: previewHtml }} />
+          <div className="preview-content blockmark" dangerouslySetInnerHTML={{ __html: previewHtml }} />
         </div>
       </div>
       <div className="bottom-bar">

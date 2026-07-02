@@ -363,3 +363,10 @@ npm test         # vitest run（41 个测试用例）
 - `parseItemContent(lines)`：递归解析 item 内容——空行跳过，遇 marker 递归 `buildList`，其余聚合为 Paragraph 节点
 - `buildList` 重写：按 W 对齐收集 continuation 行（`indent >= W` 则剥除 W 个字符），blank 行触发 `itemEndedWithBlank`；前一 item 以 blank 结尾则整个列表标记为 `loose`
 - `render_html` List：tight 时 Paragraph 子节点跳过 `<p>` 包装（直接渲染 `kids`）；loose 时正常输出 `<p>`
+
+### Demo 主题切换
+
+- 预览容器 class 由 `.md-preview` 改为 `.blockmark`，与 CSS 文件选择器对齐
+- 取消静态同时 import `light.css` + `dark.css`（两者冲突导致 dark 样式永远覆盖）
+- 改用 Vite `?url` import 获取 CSS 文件路径，运行时动态创建/替换 `<link id="blockmark-theme">` 标签实现主题切换
+- React 通过 `useEffect([darkMode])` 驱动；Vue 通过 `watchEffect` 驱动
