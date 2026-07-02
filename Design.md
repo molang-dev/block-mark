@@ -433,6 +433,31 @@ npm test         # vitest run（41 个测试用例）
 - 未知名称返回 `null`，`:unknown:` 原样保留
 - `htmlNode[Emoji]` 直接输出 emoji 字符，无包装标签
 
+### block.order + block.id
+
+- `block.index` 重命名为 `block.order`：含义不变，表示 block 在数组中的位置（0-based），每次 `update()` 后重新赋值
+- 新增 `block.id`：稳定唯一 id，从 1 开始单调递增；`update()` 新产生的 block 分配新 id，位移 block 保持原 id；`0` 表示未分配（插件 `bl()` 占位值，由 BlockMaker 在 assign 阶段填入）
+- TOC 锚点由 `bmd-h-${bl.index}` 改为 `bmd-h-${bl.id}`，跨 `update()` 保持稳定
+- TOC 虚拟 block 固定为 `id: 0, order: -1`（无需追踪）
+
+### plugin onChanged 钩子 + deletedIds
+
+- `BlockMakerPlugin` 加可选钩子 `onChanged?(changedBlocks, deletedIds, allBlocks, isEnd)`
+- 调用时机：`_runHtmlPass()` 之后、用户 `changed()` 回调之前（插件先完成 DOM 操作，用户回调再做后处理如 mermaid/katex）
+- `deletedIds: number[]`：本次 `update()` / `parse()` 中被移除的 block id 列表
+  - `parse()` 全量重解析：`deletedIds` = 上次全部 block id（重置前收集）
+  - `update()` 增量更新：`deletedIds` = 受影响范围 `[lo, hi]` 的旧 block id（splice 前收集）
+- `update()` 在开头重置上次残留的 dirty 标志，确保本次 dirty 集合干净
+
+### blockMakerDom 插件
+
+- `blockMakerDom({ id: string })` 插件：实现框架无关的 DOM 增量渲染
+- 调用方在 HTML 中放置空 `<div id="bmd-xxx">`，BlockMaker 负责其内容
+- 内部维护 `Map<blockId, HTMLElement>`，绑定 block id 与 DOM 节点
+- `onChanged` 触发时执行四步：① 移除 deletedIds 对应元素；② 创建/更新 dirty=2 块的 innerHTML；③ 按 `allBlocks` 顺序重排子元素（反向 insertBefore）；④ 收集脚注块生成 `<hr><ol>` 尾部区域
+- dirty=0（Clean）/ dirty=1（Shifted）的 block 元素不触碰，已渲染的 mermaid SVG / katex 保持不变
+- TOC block（id=0）不经 changedBlocks，在步骤③ 中每次同步 html
+
 ### GFM Alert 警告块
 
 - `GFMBlockType.Alert=111004`，`GFMNodeType.Alert=112011`，`GFMNodeType.AlertTitle=112012`

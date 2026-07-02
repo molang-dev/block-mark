@@ -142,6 +142,7 @@ export interface BlockMakerPlugin {
   blockTypeNames?: Record<number, string>
   nodeTypeNames?: Record<number, string>
   applyTheme?: (theme: string) => void
+  onChanged?: (changedBlocks: Block[], deletedIds: number[], allBlocks: Block[], isEnd: boolean) => void
 }
 
 export interface BlockMakerOptions {

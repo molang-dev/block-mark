@@ -195,6 +195,7 @@ export class BlockMaker {
   }
 
   parse(content: string): this {
+    const deletedIds = this._blocks.map(b => b.id)
     this._reset()
     const lines = content.split('\n')
     this._rawLines = lines
@@ -212,7 +213,7 @@ export class BlockMaker {
     this._mergeTrailingBlanks()
     this._assignTypeNames()
     this._runHtmlPass()
-    this._notify(this._blocks, true)
+    this._notify(this._blocks, deletedIds, true)
     // Reset dirty flags after parse — parse creates a fresh baseline
     for (const b of this._blocks) b.dirty = DirtyFlag.Clean
     return this
@@ -229,6 +230,7 @@ export class BlockMaker {
       readSync:  typeof _ReadSync
       closeSync: typeof _CloseSync
     }
+    let pendingDeletedIds = this._blocks.map(b => b.id)
     this._reset()
     const CHUNK = 64 * 1024
     const fd = openSync(filename, 'r')
@@ -257,13 +259,18 @@ export class BlockMaker {
         this._mergeTrailingBlanks()
         this._assignTypeNames()
         this._runHtmlPass()
-        this._notify(this._blocks, true)
+        this._notify(this._blocks, pendingDeletedIds, true)
+        pendingDeletedIds = []
       } else {
         this._assignTypeNames()
         this._runHtmlPass()
         const size = this._batchSizes[Math.min(this._batchIdx, this._batchSizes.length - 1)]
         batchCount += newBlocks.length
-        if (batchCount >= size) { this._notify(newBlocks, false); this._batchIdx++; batchCount = 0 }
+        if (batchCount >= size) {
+          this._notify(newBlocks, pendingDeletedIds, false)
+          pendingDeletedIds = []
+          this._batchIdx++; batchCount = 0
+        }
       }
     }
 
@@ -284,6 +291,9 @@ export class BlockMaker {
 
   update(row1: number, col1: number, row2: number, col2: number, content: string): void {
     if (!this._blocks.length) { this.parse(content); return }
+
+    // Clear dirty flags left over from the previous update before computing new ones
+    for (const b of this._blocks) b.dirty = DirtyFlag.Clean
 
     const rawLines = [...this._rawLines]
 
@@ -313,6 +323,9 @@ export class BlockMaker {
     const affLines = rawLines.slice(secStart, secEnd + 1)
     const newBlocks = this._subdivide(affLines, secStart)
 
+    // Collect deleted ids before splice
+    const deletedIds = this._blocks.slice(lo, hi + 1).map(b => b.id)
+
     // Assign order and id to new blocks
     let blockOrder = lo
     for (const bl of newBlocks) { bl.order = blockOrder; bl.id = this._nextId++; this._processBlock(bl); blockOrder++ }
@@ -337,7 +350,7 @@ export class BlockMaker {
     this._rawLines = rawLines  // save updated raw lines
 
     const dirty = this._blocks.filter(b => b.dirty > 0)
-    this._notify(dirty, true)
+    this._notify(dirty, deletedIds, true)
   }
 
   allBlocks(): Block[] {
@@ -630,7 +643,9 @@ export class BlockMaker {
     this._tocBlock.html = `<nav>${parts.join('')}</nav>`
   }
 
-  private _notify(blocks: Block[], isEnd: boolean): void {
-    if (this._callback) this._callback(isEnd ? this.allBlocks() : blocks, isEnd)
+  private _notify(changedBlocks: Block[], deletedIds: number[], isEnd: boolean): void {
+    const all = this.allBlocks()
+    for (const p of this._plugins) p.onChanged?.(changedBlocks, deletedIds, all, isEnd)
+    if (this._callback) this._callback(isEnd ? all : changedBlocks, isEnd)
   }
 }
