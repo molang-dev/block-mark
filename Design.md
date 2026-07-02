@@ -425,3 +425,11 @@ npm test         # vitest run（41 个测试用例）
 - `src/plugins/emoji-map.ts`：GitHub 标准 emoji 映射表（~500 条，覆盖 smileys/people/animals/food/activities/travel/objects/symbols/GitHub 专属）
 - 未知名称返回 `null`，`:unknown:` 原样保留
 - `htmlNode[Emoji]` 直接输出 emoji 字符，无包装标签
+
+### GFM Alert 警告块
+
+- `GFMBlockType.Alert=111004`，`GFMNodeType.Alert=112011`，`GFMNodeType.AlertTitle=112012`
+- block rule priority 59，检测 `> {0,4}[!NOTE/TIP/IMPORTANT/WARNING/CAUTION]`（`>` 后允许 0-4 个空格，等效于 blockquote 消耗1空格后剩余≤3不计入 indentedCode）
+- block.meta 存类型小写字符串，内容行剥去 `> ` 前缀后走 inline 解析
+- 输出 `<blockquote data-alert="note">` + `<p><strong>Title</strong></p>` + 内容，无 className，用 `data-alert` 区分类型
+- light/dark.css 追加 Alert 样式：彩色左边框 + 淡色/深色背景 + 标题色 + CSS `::before` emoji 图标，颜色对标 GitHub
