@@ -17,6 +17,7 @@ export enum BlockType {
   Hr         = 101006,
   Html       = 101007,
   Def        = 101008,
+  Toc        = 101009,
 }
 
 // ─── Core node types (module 10, node=2) ─────────────────────────────────────
@@ -146,6 +147,8 @@ export interface BlockMakerOptions {
   batchSizes?: number[]
   /** When false, only fenced code (``` / ~~~) is recognized; ≥4-space indent is not code. Default: true */
   indentedCode?: boolean
+  /** When true, inserts a TOC block after the first heading. Default: false */
+  toc?: boolean
 }
 
 export type ChangedCallback = (blocks: Block[], isEnd: boolean) => void

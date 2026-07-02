@@ -127,6 +127,7 @@ export class BlockMaker {
   private _nodeTypeNames: Map<number, string>
   private _blocks: Block[] = []
   private _rawLines: string[] = []
+  private _tocBlock: Block | null = null
   private _defs: Map<string, { url: string; blockIndex: number }> = new Map()
   private _refs: Array<{ node: Node; blockIndex: number }> = []
   private _callback: ChangedCallback | null = null
@@ -329,7 +330,14 @@ export class BlockMaker {
     this._notify(dirty, true)
   }
 
-  allBlocks(): Block[] { return this._blocks }
+  allBlocks(): Block[] {
+    if (!this._opts.toc || !this._tocBlock) return this._blocks
+    const firstHeadingIdx = this._blocks.findIndex(b => b.type === BlockType.Heading)
+    if (firstHeadingIdx < 0) return this._blocks
+    const result = [...this._blocks]
+    result.splice(firstHeadingIdx + 1, 0, this._tocBlock)
+    return result
+  }
 
   findBlocks(start: number, end: number): Block[] {
     if (start > end) [start, end] = [end, start]
@@ -558,9 +566,60 @@ export class BlockMaker {
       const fn = this._htmlBlock.get(bl.type)
       if (fn) bl.html = fn(bl, ctx)
     }
+    this._buildToc()
+  }
+
+  private _extractText(nodes: Node[]): string {
+    return (nodes ?? []).map(n => n.children ? this._extractText(n.children) : (n.text ?? '')).join('')
+  }
+
+  private _buildToc(): void {
+    if (!this._opts.toc) return
+
+    // Inject id into every heading's html
+    for (const bl of this._blocks) {
+      if (bl.type === BlockType.Heading && bl.html) {
+        bl.html = bl.html.replace(/^<(h\d)>/, `<$1 id="bmd-h-${bl.index}">`)
+      }
+    }
+
+    const headings = this._blocks.filter(b => b.type === BlockType.Heading)
+    if (headings.length === 0) { this._tocBlock = null; return }
+
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const parts: string[] = []
+    const stack: number[] = []
+
+    for (const b of headings) {
+      const d = b.depth ?? 1
+      const link = `<a href="#bmd-h-${b.index}">${esc(this._extractText(b.markdown?.[0]?.children ?? []))}</a>`
+      if (stack.length === 0) {
+        parts.push('<ul>', '<li>', link); stack.push(d)
+      } else {
+        const top = stack[stack.length - 1]
+        if (d > top) {
+          parts.push('<ul>', '<li>', link); stack.push(d)
+        } else if (d === top) {
+          parts.push('</li>', '<li>', link)
+        } else {
+          while (stack.length > 0 && stack[stack.length - 1] > d) {
+            parts.push('</li>', '</ul>'); stack.pop()
+          }
+          if (stack.length > 0 && stack[stack.length - 1] === d) parts.push('</li>', '<li>', link)
+          else { parts.push('<li>', link); stack.push(d) }
+        }
+      }
+    }
+    while (stack.length > 0) { parts.push('</li>', '</ul>'); stack.pop() }
+
+    if (!this._tocBlock) {
+      this._tocBlock = { type: BlockType.Toc, lines: [], index: -1, lineStart: -1, lineEnd: -1, dirty: DirtyFlag.Clean }
+      if (this._opts.showTypeName) this._tocBlock.typeName = 'Toc'
+    }
+    this._tocBlock.html = `<nav>${parts.join('')}</nav>`
   }
 
   private _notify(blocks: Block[], isEnd: boolean): void {
-    if (this._callback) this._callback(blocks, isEnd)
+    if (this._callback) this._callback(isEnd ? this.allBlocks() : blocks, isEnd)
   }
 }

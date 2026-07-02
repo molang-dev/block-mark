@@ -28,7 +28,7 @@ const highlight = (code, lang) =>
   lang && hljs.getLanguage(lang)
     ? hljs.highlight(code, { language: lang }).value
     : hljs.highlightAuto(code).value
-const p = new BlockMaker().use(blockMakerGFM).use(blockMakerHtml).use(blockMakerCode(highlight))
+const p = new BlockMaker({ toc: true }).use(blockMakerGFM).use(blockMakerHtml).use(blockMakerCode(highlight))
 
 const mdContent  = ref(testMdRaw)
 const cursorLine = ref(0)

@@ -325,6 +325,7 @@ export const coreBlockTypeNames: Record<number, string> = {
   [BT.Hr]:         'Hr',
   [BT.Html]:       'Html',
   [BT.Def]:        'Def',
+  [BT.Toc]:        'Toc',
 }
 
 export const coreNodeTypeNames: Record<number, string> = {
