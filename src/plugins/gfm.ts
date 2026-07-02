@@ -2,6 +2,7 @@ import {
   BlockMakerPlugin, BlockRule, InlineRule, Block, Node, BlockContext,
   InlineContext, BlockType, DirtyFlag, BlockProcessorCtx, HtmlCtx,
 } from '../core/types'
+import { EMOJI_MAP } from './emoji-map'
 
 // ─── GFM-specific type numbers (module 11) ───────────────────────────────────
 
@@ -21,6 +22,7 @@ export enum GFMNodeType {
   Table       = 112007,
   MathInline  = 112008,
   MathBlock   = 112009,
+  Emoji       = 112010,
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -167,6 +169,21 @@ const mathInline: InlineRule = {
   },
 }
 
+// ─── G-I-06  Emoji :name: ────────────────────────────────────────────────────
+
+const emoji: InlineRule = {
+  name: 'gfm-emoji',
+  priority: 25,
+  trigger(ch) { return ch === ':' },
+  tryParse(src, pos) {
+    const m = src.slice(pos).match(/^:([a-z0-9_+\-]+):/)
+    if (!m) return null
+    const ch = EMOJI_MAP[m[1]]
+    if (!ch) return null
+    return { node: nd(GFMNodeType.Emoji, { text: ch }), length: m[0].length }
+  },
+}
+
 // ─── Task list checkbox inline rule ─────────────────────────────────────────
 
 const taskCheckbox: InlineRule = {
@@ -262,7 +279,7 @@ export const blockMakerGFM: BlockMakerPlugin = {
 
   blockRules: [tableRule, footnoteDefRule, mathBlockRule],
 
-  inlineRules: [taskCheckbox, strikethrough, footnoteRef, mathInline],
+  inlineRules: [taskCheckbox, strikethrough, footnoteRef, mathInline, emoji],
 
   blockProcessors: {
     [GFMBlockType.Table]:       (block, ctx) => buildTableNode(block, ctx),
@@ -284,6 +301,7 @@ export const blockMakerGFM: BlockMakerPlugin = {
     [GFMNodeType.TableRow]:    (node, ctx)  => `<tr>${ctx.renderNodes(node.children ?? [])}</tr>`,
     [GFMNodeType.TableCell]:   (node, ctx)  => { const s = node.meta ? ` style="text-align:${node.meta}"` : ''; return `<td${s}>${ctx.renderNodes(node.children ?? [])}</td>` },
     [GFMNodeType.FootnoteDef]: (node, ctx)  => renderFootnoteDefNode(node, ctx),
+    [GFMNodeType.Emoji]:       (node)       => node.text ?? '',
   },
 
   blockTypeNames: {
@@ -301,5 +319,6 @@ export const blockMakerGFM: BlockMakerPlugin = {
     [GFMNodeType.Table]:       'Table',
     [GFMNodeType.MathInline]:  'MathInline',
     [GFMNodeType.MathBlock]:   'MathBlock',
+    [GFMNodeType.Emoji]:       'Emoji',
   },
 }

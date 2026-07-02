@@ -407,3 +407,21 @@ npm test         # vitest run（41 个测试用例）
 - `htmlBlock` 输出 `<pre class="mermaid">${esc(code)}</pre>`，由客户端 Mermaid.js 接管渲染
 - `blockMakerCode` 的 highlight 签名改为 `(code, lang) => string | null`，返回 `null` 时 fallback plain text（不再 autoDetect）
 - Demo：`mermaid.initialize({ startOnLoad: false })`，`changed` 回调后 `nextTick(() => mermaid.run())` 驱动渲染
+
+### GFM 数学公式（解析 + 渲染分离）
+
+- GFM 插件负责解析：`GFMBlockType.MathBlock=111003`，`GFMNodeType.MathInline=112008`，`GFMNodeType.MathBlock=112009`
+- block rule (priority 34) 识别 `$$...$$` 块级公式，inline rule 识别 `$...$` 行内公式（非空、无首尾空格）
+- `blockMakerMath` 插件负责渲染：`MathBlock→<div class="math-display">$$...$$</div>`，`MathInline→<span class="math-inline">$...$</span>`
+- Demo 安装 katex，`nextTick` 后 `renderMathInElement` 处理预览区
+
+### Autolink text 字段
+
+- 裸 URL、裸 Email、`<url>` 三种 autolink 解析时统一给 node 设 `text = url/email`，渲染器直接使用，避免输出空 `<a>` 标签
+
+### GFM Emoji 表情符号
+
+- `GFMNodeType.Emoji = 112010`；inline rule priority 25，触发字符 `:`，匹配 `:name:` 查表
+- `src/plugins/emoji-map.ts`：GitHub 标准 emoji 映射表（~500 条，覆盖 smileys/people/animals/food/activities/travel/objects/symbols/GitHub 专属）
+- 未知名称返回 `null`，`:unknown:` 原样保留
+- `htmlNode[Emoji]` 直接输出 emoji 字符，无包装标签
