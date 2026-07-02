@@ -1,8 +1,9 @@
 <script setup>
-import { shallowRef, ref, computed, watchEffect } from 'vue'
+import { shallowRef, ref, computed, watchEffect, nextTick } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { BlockMaker, blockMakerGFM, blockMakerHtml, blockMakerCode } from 'blockmark'
+import { BlockMaker, blockMakerGFM, blockMakerHtml, blockMakerCode, blockMakerMermaid } from 'blockmark'
+import mermaid from 'mermaid'
 import hljs from 'highlight.js'
 import hljsLightUrl from 'highlight.js/styles/github.css?url'
 import hljsDarkUrl  from 'highlight.js/styles/github-dark.css?url'
@@ -23,12 +24,18 @@ function charToRowCol(text, charPos) {
   return { row: lines.length - 1, col: lines[lines.length - 1].length }
 }
 
+mermaid.initialize({ startOnLoad: false, theme: 'default' })
+
 // 一次性初始化：<script setup> 顶层只跑一次，无需 useRef 守卫
 const highlight = (code, lang) =>
   lang && hljs.getLanguage(lang)
     ? hljs.highlight(code, { language: lang }).value
-    : hljs.highlightAuto(code).value
-const p = new BlockMaker({ toc: true }).use(blockMakerGFM).use(blockMakerHtml).use(blockMakerCode(highlight))
+    : null
+const p = new BlockMaker({ toc: true })
+  .use(blockMakerGFM)
+  .use(blockMakerMermaid)
+  .use(blockMakerHtml)
+  .use(blockMakerCode(highlight))
 
 const mdContent  = ref(testMdRaw)
 const cursorLine = ref(0)
@@ -63,6 +70,7 @@ let prevContent = testMdRaw
 p.changed((_changed, isEnd) => {
   if (!isEnd) return
   blocks.value = [...p.allBlocks()]   // 浅拷贝：引用变化让 DynamicScroller 感知更新
+  nextTick(() => mermaid.run())
 })
 
 p.parse(testMdRaw)
