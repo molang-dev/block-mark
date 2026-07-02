@@ -1,8 +1,11 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { VariableSizeList } from 'react-window'
-import { BlockMaker, blockMakerGFM, blockMakerHtml } from 'blockmark'
-import lightCssUrl from '../../../src/light.css?url'
-import darkCssUrl  from '../../../src/dark.css?url'
+import { BlockMaker, blockMakerGFM, blockMakerHtml, blockMakerCode } from 'blockmark'
+import hljs from 'highlight.js'
+import lightCssUrl    from '../../../src/light.css?url'
+import darkCssUrl     from '../../../src/dark.css?url'
+import hljsLightUrl  from 'highlight.js/styles/github.css?url'
+import hljsDarkUrl   from 'highlight.js/styles/github-dark.css?url'
 import BlockCard from './BlockCard.jsx'
 import './App.css'
 import './md-custom.css'
@@ -37,7 +40,11 @@ export default function App() {
   // 组件内一次性初始化（useRef 懒 init，StrictMode 安全）
   const initRef = useRef(null)
   if (!initRef.current) {
-    const p = new BlockMaker().use(blockMakerGFM).use(blockMakerHtml)
+    const highlight = (code, lang) =>
+      lang && hljs.getLanguage(lang)
+        ? hljs.highlight(code, { language: lang }).value
+        : hljs.highlightAuto(code).value
+    const p = new BlockMaker().use(blockMakerGFM).use(blockMakerHtml).use(blockMakerCode(highlight))
     const content = loadMDFile('../test/test.md')
     p.changed((_changed, isEnd) => {
       if (!isEnd) return
@@ -63,6 +70,15 @@ export default function App() {
       document.head.appendChild(link)
     }
     link.href = darkMode ? darkCssUrl : lightCssUrl
+
+    let hljsLink = document.getElementById('hljs-theme')
+    if (!hljsLink) {
+      hljsLink = document.createElement('link')
+      hljsLink.id  = 'hljs-theme'
+      hljsLink.rel = 'stylesheet'
+      document.head.appendChild(hljsLink)
+    }
+    hljsLink.href = darkMode ? hljsDarkUrl : hljsLightUrl
   }, [darkMode])
 
   // 每次 render 挂上最新的 rev setter（stable ref，无副作用）

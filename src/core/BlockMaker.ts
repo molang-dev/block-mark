@@ -130,11 +130,12 @@ export class BlockMaker {
   private _defs: Map<string, { url: string; blockIndex: number }> = new Map()
   private _refs: Array<{ node: Node; blockIndex: number }> = []
   private _callback: ChangedCallback | null = null
-  private _batchSizes = [400, 800, 1600, 3200]
+  private _batchSizes: number[] = [400, 800, 1600, 3200]
   private _batchIdx = 0
 
   constructor(opts: BlockMakerOptions = {}) {
     this._opts = opts
+    if (opts.batchSizes) this._batchSizes = opts.batchSizes
     this._blockRules = [...coreBlockRules]
     this._inlineRules = [...coreInlineRules]
     this._blockProcessors = new Map()
@@ -343,6 +344,8 @@ export class BlockMaker {
     const sections: Array<{ lines: string[]; lineStart: number }> = []
     let current: string[] = []
     let secStart = 0
+    let inFence = false
+    let fenceMark = ''
 
     const push = (start: number) => {
       if (current.length) { sections.push({ lines: current, lineStart: start }); current = [] }
@@ -350,8 +353,15 @@ export class BlockMaker {
 
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i]
-      if (l !== lines[0] && /^( {0,3})(#{1,6})(\s|$)/.test(l)) {
-        push(secStart); secStart = i
+      if (inFence) {
+        if (new RegExp(`^( {0,3})${fenceMark}{3,}\\s*$`).test(l)) inFence = false
+      } else {
+        const fm = l.match(/^( {0,3})(`{3,}|~{3,})/)
+        if (fm) {
+          inFence = true; fenceMark = fm[2][0] === '`' ? '`' : '~'
+        } else if (i !== 0 && /^( {0,3})(#{1,6})(\s|$)/.test(l)) {
+          push(secStart); secStart = i
+        }
       }
       current.push(l)
     }
@@ -499,13 +509,21 @@ export class BlockMaker {
   private _assignTypeNames(): void {
     if (!this._opts.showTypeName) return
     for (const bl of this._blocks) {
-      bl.typeName = this._blockTypeNames.get(bl.type) ?? `Unknown(${bl.type})`
+      const name = this._blockTypeNames.get(bl.type) ?? `Unknown(${bl.type})`
+      const saved = { ...bl } as any
+      for (const k of Object.keys(bl)) delete (bl as any)[k]
+      bl.typeName = name
+      Object.assign(bl, saved)
       for (const nd of bl.markdown ?? []) this._assignNodeTypeNames(nd)
     }
   }
 
   private _assignNodeTypeNames(nd: Node): void {
-    nd.typeName = this._nodeTypeNames.get(nd.type) ?? `Unknown(${nd.type})`
+    const name = this._nodeTypeNames.get(nd.type) ?? `Unknown(${nd.type})`
+    const saved = { ...nd } as any
+    for (const k of Object.keys(nd)) delete (nd as any)[k]
+    nd.typeName = name
+    Object.assign(nd, saved)
     for (const child of nd.children ?? []) this._assignNodeTypeNames(child)
   }
 
