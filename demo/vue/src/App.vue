@@ -2,7 +2,10 @@
 import { shallowRef, ref, computed, watchEffect } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { BlockMaker, blockMakerGFM, blockMakerHtml } from 'blockmark'
+import { BlockMaker, blockMakerGFM, blockMakerHtml, blockMakerCode } from 'blockmark'
+import hljs from 'highlight.js'
+import hljsLightUrl from 'highlight.js/styles/github.css?url'
+import hljsDarkUrl  from 'highlight.js/styles/github-dark.css?url'
 import lightCssUrl from '../../../src/light.css?url'
 import darkCssUrl  from '../../../src/dark.css?url'
 import BlockCard from './BlockCard.vue'
@@ -21,7 +24,11 @@ function charToRowCol(text, charPos) {
 }
 
 // 一次性初始化：<script setup> 顶层只跑一次，无需 useRef 守卫
-const p = new BlockMaker().use(blockMakerGFM).use(blockMakerHtml)
+const highlight = (code, lang) =>
+  lang && hljs.getLanguage(lang)
+    ? hljs.highlight(code, { language: lang }).value
+    : hljs.highlightAuto(code).value
+const p = new BlockMaker().use(blockMakerGFM).use(blockMakerHtml).use(blockMakerCode(highlight))
 
 const mdContent  = ref(testMdRaw)
 const cursorLine = ref(0)
@@ -36,6 +43,15 @@ watchEffect(() => {
     document.head.appendChild(link)
   }
   link.href = darkMode.value ? darkCssUrl : lightCssUrl
+
+  let hljsLink = document.getElementById('hljs-theme')
+  if (!hljsLink) {
+    hljsLink = document.createElement('link')
+    hljsLink.id  = 'hljs-theme'
+    hljsLink.rel = 'stylesheet'
+    document.head.appendChild(hljsLink)
+  }
+  hljsLink.href = darkMode.value ? hljsDarkUrl : hljsLightUrl
 })
 
 // shallowRef 持有 parser 内部数组，零拷贝；triggerRef 强制通知 Vue 重渲染

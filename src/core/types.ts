@@ -143,6 +143,7 @@ export interface BlockMakerPlugin {
 
 export interface BlockMakerOptions {
   showTypeName?: boolean
+  batchSizes?: number[]
 }
 
 export type ChangedCallback = (blocks: Block[], isEnd: boolean) => void
