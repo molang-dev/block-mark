@@ -11,4 +11,5 @@ export { blockMakerHtml } from './plugins/html'
 export { blockMakerCode } from './plugins/code'
 export { blockMakerMermaid, MermaidBlockType } from './plugins/mermaid'
 export { blockMakerMath } from './plugins/math'
+export { blockMakerThemeCss } from './plugins/theme-css'
 

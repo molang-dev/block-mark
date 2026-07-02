@@ -33,21 +33,41 @@ const mermaidRule: BlockRule = {
   },
 }
 
-export const blockMakerMermaid: BlockMakerPlugin = {
-  name: 'mermaid',
+export interface MermaidConfig {
+  mermaid?: {
+    initialize(config: Record<string, unknown>): void
+    run(): void
+  }
+}
 
-  blockRules: [mermaidRule],
+export function blockMakerMermaid(config?: MermaidConfig): BlockMakerPlugin {
+  const _m = config?.mermaid
 
-  htmlBlock: {
-    [MermaidBlockType.Diagram]: (block: Block) => {
-      const lines = block.lines
-      // strip opening fence line and closing fence line
-      const code = lines.slice(1, lines[lines.length - 1]?.match(/^( {0,3})(`{3,}|~{3,})\s*$/) ? -1 : undefined).join('\n')
-      return `<pre class="mermaid">${esc(code)}</pre>`
+  return {
+    name: 'mermaid',
+
+    blockRules: [mermaidRule],
+
+    htmlBlock: {
+      [MermaidBlockType.Diagram]: (block: Block) => {
+        const lines = block.lines
+        const code = lines.slice(1, lines[lines.length - 1]?.match(/^( {0,3})(`{3,}|~{3,})\s*$/) ? -1 : undefined).join('\n')
+        return `<pre class="mermaid" data-source="${esc(code)}">${esc(code)}</pre>`
+      },
     },
-  },
 
-  blockTypeNames: {
-    [MermaidBlockType.Diagram]: 'Mermaid',
-  },
+    applyTheme(theme: string) {
+      if (!_m) return
+      _m.initialize({ startOnLoad: false, theme: theme === 'dark' ? 'dark' : 'default' })
+      document.querySelectorAll<HTMLElement>('pre.mermaid[data-source]').forEach(el => {
+        el.textContent = el.dataset.source ?? ''
+        el.removeAttribute('data-processed')
+      })
+      _m.run()
+    },
+
+    blockTypeNames: {
+      [MermaidBlockType.Diagram]: 'Mermaid',
+    },
+  }
 }
