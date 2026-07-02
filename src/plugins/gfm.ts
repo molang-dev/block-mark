@@ -43,7 +43,7 @@ function parseAlign(cell: string): 'left' | 'right' | 'center' | null {
 }
 
 function splitTableRow(line: string): string[] {
-  return line.replace(/^\||\|$/g, '').split('|').map(c => c.trim())
+  return line.trimStart().replace(/^\||\|$/g, '').split('|').map(c => c.trim())
 }
 
 function isSepRow(line: string): boolean {

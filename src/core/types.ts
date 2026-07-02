@@ -144,6 +144,8 @@ export interface BlockMakerPlugin {
 export interface BlockMakerOptions {
   showTypeName?: boolean
   batchSizes?: number[]
+  /** When false, only fenced code (``` / ~~~) is recognized; ≥4-space indent is not code. Default: true */
+  indentedCode?: boolean
 }
 
 export type ChangedCallback = (blocks: Block[], isEnd: boolean) => void
