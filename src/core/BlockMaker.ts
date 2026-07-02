@@ -130,6 +130,7 @@ export class BlockMaker {
   private _tocBlock: Block | null = null
   private _defs: Map<string, { url: string; blockIndex: number }> = new Map()
   private _refs: Array<{ node: Node; blockIndex: number }> = []
+  private _plugins: BlockMakerPlugin[] = []
   private _callback: ChangedCallback | null = null
   private _batchSizes: number[] = [400, 800, 1600, 3200]
   private _batchIdx = 0
@@ -149,7 +150,13 @@ export class BlockMaker {
     this._registerCoreProcessors()
   }
 
+  applyTheme(theme: string): this {
+    for (const p of this._plugins) p.applyTheme?.(theme)
+    return this
+  }
+
   use(plugin: BlockMakerPlugin): this {
+    this._plugins.push(plugin)
     if (plugin.blockRules) {
       this._blockRules.push(...plugin.blockRules)
       this._blockRules.sort((a, b) => a.priority - b.priority)

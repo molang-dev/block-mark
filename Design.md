@@ -402,11 +402,18 @@ npm test         # vitest run（41 个测试用例）
 
 ### Mermaid 图表插件
 
-- 新建 `blockMakerMermaid` 插件（模块 ID 12），独立于 `blockMakerCode`
+- 改为工厂函数 `blockMakerMermaid(config?: { mermaid? })`，接受外部 mermaid 实例
 - `MermaidBlockType.Diagram = 121001`；block rule priority 34（高于 fencedCode=35），专门拦截 ` ```mermaid ` fence
-- `htmlBlock` 输出 `<pre class="mermaid">${esc(code)}</pre>`，由客户端 Mermaid.js 接管渲染
+- `htmlBlock` 输出 `<pre class="mermaid" data-source="...">code</pre>`，`data-source` 保存原始 diagram 源码供主题切换时恢复
 - `blockMakerCode` 的 highlight 签名改为 `(code, lang) => string | null`，返回 `null` 时 fallback plain text（不再 autoDetect）
-- Demo：`mermaid.initialize({ startOnLoad: false })`，`changed` 回调后 `nextTick(() => mermaid.run())` 驱动渲染
+- `applyTheme` 钩子：`mermaid.initialize({ theme })` → 从 `data-source` 恢复内容 → 清除 `data-processed` → `mermaid.run()`
+
+### applyTheme 插件机制
+
+- `BlockMakerPlugin` 加可选钩子 `applyTheme?(theme: string): void`
+- `BlockMaker.applyTheme(theme)` 遍历所有已注册插件并调用其钩子，返回 `this`（支持链式）
+- `blockMakerThemeCss({ id, light, dark })` 插件：`applyTheme` 时创建/更新 `<link>` 元素实现 CSS 切换
+- Demo 主题切换收敛为单行：`watchEffect(() => p.applyTheme(darkMode.value ? 'dark' : 'light'))`
 
 ### GFM 数学公式（解析 + 渲染分离）
 

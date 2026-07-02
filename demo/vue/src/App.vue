@@ -2,7 +2,7 @@
 import { shallowRef, ref, computed, watchEffect, nextTick } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { BlockMaker, blockMakerGFM, blockMakerHtml, blockMakerCode, blockMakerMermaid, blockMakerMath } from 'blockmark'
+import { BlockMaker, blockMakerGFM, blockMakerHtml, blockMakerCode, blockMakerMermaid, blockMakerMath, blockMakerThemeCss } from 'blockmark'
 import mermaid from 'mermaid'
 import renderMathInElement from 'katex/contrib/auto-render'
 import 'katex/dist/katex.min.css'
@@ -26,8 +26,6 @@ function charToRowCol(text, charPos) {
   return { row: lines.length - 1, col: lines[lines.length - 1].length }
 }
 
-mermaid.initialize({ startOnLoad: false, theme: 'default' })
-
 // 一次性初始化：<script setup> 顶层只跑一次，无需 useRef 守卫
 const highlight = (code, lang) =>
   lang && hljs.getLanguage(lang)
@@ -35,33 +33,20 @@ const highlight = (code, lang) =>
     : null
 const p = new BlockMaker({ toc: true })
   .use(blockMakerGFM)
-  .use(blockMakerMermaid)
+  .use(blockMakerMermaid({ mermaid }))
   .use(blockMakerMath)
   .use(blockMakerHtml)
   .use(blockMakerCode(highlight))
+  .use(blockMakerThemeCss({ id: 'blockmark-theme', light: lightCssUrl, dark: darkCssUrl }))
+  .use(blockMakerThemeCss({ id: 'hljs-theme',      light: hljsLightUrl, dark: hljsDarkUrl }))
 
 const mdContent  = ref(testMdRaw)
 const cursorLine = ref(0)
 const darkMode   = ref(false)
 
-watchEffect(() => {
-  let link = document.getElementById('blockmark-theme')
-  if (!link) {
-    link = document.createElement('link')
-    link.id  = 'blockmark-theme'
-    link.rel = 'stylesheet'
-    document.head.appendChild(link)
-  }
-  link.href = darkMode.value ? darkCssUrl : lightCssUrl
-
-  let hljsLink = document.getElementById('hljs-theme')
-  if (!hljsLink) {
-    hljsLink = document.createElement('link')
-    hljsLink.id  = 'hljs-theme'
-    hljsLink.rel = 'stylesheet'
-    document.head.appendChild(hljsLink)
-  }
-  hljsLink.href = darkMode.value ? hljsDarkUrl : hljsLightUrl
+watchEffect(() =>{
+  console.log('watchEffect darkMode = ', darkMode.value)
+  p.applyTheme(darkMode.value ? 'dark' : 'light')
 })
 
 // shallowRef 持有 parser 内部数组，零拷贝；triggerRef 强制通知 Vue 重渲染
@@ -94,7 +79,7 @@ function parse() {
 }
 
 function handleInput(e) {
-  console.log(e.target.value)
+  // console.log(e.target.value)
   const newContent = e.target.value
   mdContent.value  = newContent
 

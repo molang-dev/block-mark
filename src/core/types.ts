@@ -140,6 +140,7 @@ export interface BlockMakerPlugin {
   // Separate maps avoid numeric collision between BlockType and NodeType
   blockTypeNames?: Record<number, string>
   nodeTypeNames?: Record<number, string>
+  applyTheme?: (theme: string) => void
 }
 
 export interface BlockMakerOptions {
