@@ -323,12 +323,17 @@ export class BlockMaker {
     const affLines = rawLines.slice(secStart, secEnd + 1)
     const newBlocks = this._subdivide(affLines, secStart)
 
-    // Collect deleted ids before splice
-    const deletedIds = this._blocks.slice(lo, hi + 1).map(b => b.id)
+    // Reuse old ids by position; only truly removed blocks go into deletedIds
+    const oldBlocks = this._blocks.slice(lo, hi + 1)
+    const deletedIds = oldBlocks.slice(newBlocks.length).map(b => b.id)
 
-    // Assign order and id to new blocks
+    // Assign order and id: reuse old id when a matching position exists
     let blockOrder = lo
-    for (const bl of newBlocks) { bl.order = blockOrder; bl.id = this._nextId++; this._processBlock(bl); blockOrder++ }
+    for (let i = 0; i < newBlocks.length; i++) {
+      newBlocks[i].order = blockOrder++
+      newBlocks[i].id = i < oldBlocks.length ? oldBlocks[i].id : this._nextId++
+      this._processBlock(newBlocks[i])
+    }
 
     // Splice into _blocks
     this._blocks.splice(lo, hi - lo + 1, ...newBlocks)
@@ -646,6 +651,6 @@ export class BlockMaker {
   private _notify(changedBlocks: Block[], deletedIds: number[], isEnd: boolean): void {
     const all = this.allBlocks()
     for (const p of this._plugins) p.onChanged?.(changedBlocks, deletedIds, all, isEnd)
-    if (this._callback) this._callback(isEnd ? all : changedBlocks, isEnd)
+    if (this._callback) this._callback(changedBlocks, isEnd)
   }
 }
