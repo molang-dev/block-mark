@@ -193,9 +193,14 @@ describe('GFM HTML rendering', () => {
   })
 
   it('renders footnote def', () => {
-    const html = renderGfm('[^1]: My footnote')
-    expect(html).toContain('footnote-def')
-    expect(html).toContain('id="fn-1"')
+    // FootnoteDef block.html stores inner content only; wrapper assembled by caller
+    let blocks: any[] = []
+    new BlockMaker().use(blockMakerGFM).use(blockMakerHtml)
+      .changed((b, isEnd) => { if (isEnd) blocks = b }).parse('[^1]: My footnote')
+    const fn = blocks.find((b: any) => b.type === 111002)
+    expect(fn).toBeTruthy()
+    expect(fn.meta).toBe('1')
+    expect(fn.html).toContain('My footnote')
   })
 })
 

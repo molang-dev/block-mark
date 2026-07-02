@@ -126,10 +126,16 @@ export default function App() {
     if (ta) setCursorLine(cursorLineNumber(ta.value, ta.selectionStart))
   }, [])
 
-  const previewHtml = useMemo(() =>
-    blocks.map(b => b.html ?? '').join(''),
-    [rev]
-  )
+  const FN_TYPE = 111002
+  const previewHtml = useMemo(() => {
+    const mainParts = [], fnParts = []
+    for (const b of blocks) {
+      if (b.type === FN_TYPE) fnParts.push(`<li id="bmd-fn-${b.meta}">${b.html ?? ''}</li>`)
+      else mainParts.push(b.html ?? '')
+    }
+    const fnSection = fnParts.length ? `<hr><ol>${fnParts.join('')}</ol>` : ''
+    return mainParts.join('') + fnSection
+  }, [rev])
 
   const matchedBlock = useMemo(() => {
     if (blocks.length === 0) return null

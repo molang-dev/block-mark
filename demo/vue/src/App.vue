@@ -104,9 +104,16 @@ function handleCursor(e) {
   cursorLine.value = cursorLineNumber(e.target.value, e.target.selectionStart)
 }
 
-const previewHtml = computed(() =>
-  blocks.value.map(b => b.html ?? '').join('')
-)
+const FN_TYPE = 111002
+const previewHtml = computed(() => {
+  const mainParts = [], fnParts = []
+  for (const b of blocks.value) {
+    if (b.type === FN_TYPE) fnParts.push(`<li id="bmd-fn-${b.meta}">${b.html ?? ''}</li>`)
+    else mainParts.push(b.html ?? '')
+  }
+  const fnSection = fnParts.length ? `<hr><ol>${fnParts.join('')}</ol>` : ''
+  return mainParts.join('') + fnSection
+})
 
 const matchedBlock = computed(() => {
   for (const b of blocks.value) {
