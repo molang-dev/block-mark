@@ -203,10 +203,18 @@ export class Parser {
         }
       }
     }
-    for (const [id, def] of this._defs) {
+    // Collect defs newly introduced by this edit (present in merged but absent in oldDefMap)
+    const newDefMap = new Map<string, string>()
+    for (const b of merged) {
+      if (b.type === BlockType.Def) {
+        const m = b.lines[0]?.match(/^\s*\[([^\]]+)\]:\s*(\S+)/)
+        if (m) newDefMap.set(m[1].toLowerCase(), m[2])
+      }
+    }
+    for (const [id, def] of newDefMap) {
       if (!oldDefMap.has(id)) {
         for (const ref of this._refs) {
-          if (ref.node.defId === id) { ref.node.url = def.url; extraDirtySet.add(ref.blockIndex) }
+          if (ref.node.defId === id) { ref.node.url = def; extraDirtySet.add(ref.blockIndex) }
         }
       }
     }

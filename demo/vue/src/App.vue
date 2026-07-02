@@ -1,12 +1,12 @@
 <script setup>
-import { shallowRef, ref, computed } from 'vue'
+import { shallowRef, ref, computed, watchEffect } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import { Parser, render_html } from 'mdparser'
 // import 'mdparser/light.css'
 // import 'mdparser/dark.css'
-import '../../../src/light.css'
-import '../../../src/dark.css'
+import lightCssUrl from '../../../src/light.css?url'
+import darkCssUrl  from '../../../src/dark.css?url'
 import BlockCard from './BlockCard.vue'
 import './App.css'
 // import './md-custom.css'
@@ -28,6 +28,17 @@ const p = new Parser()
 const mdContent  = ref(testMdRaw)
 const cursorLine = ref(0)
 const darkMode   = ref(false)
+
+watchEffect(() => {
+  let link = document.getElementById('blockmark-theme')
+  if (!link) {
+    link = document.createElement('link')
+    link.id  = 'blockmark-theme'
+    link.rel = 'stylesheet'
+    document.head.appendChild(link)
+  }
+  link.href = darkMode.value ? darkCssUrl : lightCssUrl
+})
 
 // shallowRef 持有 parser 内部数组，零拷贝；triggerRef 强制通知 Vue 重渲染
 const blocks = shallowRef(p.allBlocks())
@@ -135,7 +146,7 @@ const matchedBlock = computed(() => {
           <span class="toolbar-title">预览</span>
           <button class="btn-parse" @click="darkMode = !darkMode">{{ darkMode ? 'Light' : 'Dark' }}</button>
         </div>
-        <div :class="['preview-content', 'md-preview', { dark: darkMode }]" v-html="previewHtml" />
+        <div class="preview-content blockmark" v-html="previewHtml" />
       </div>
     </div>
     <div class="bottom-bar">
