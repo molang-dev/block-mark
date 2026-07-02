@@ -3,7 +3,7 @@ import { Block, BlockRule, BlockContext, BlockType, DirtyFlag } from './types'
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function b(type: number, lines: string[], extra?: Partial<Block>): Block {
-  return { type, lines, index: 0, lineStart: 0, lineEnd: 0, dirty: DirtyFlag.Changed, ...extra }
+  return { type, lines, id: 0, order: 0, lineStart: 0, lineEnd: 0, dirty: DirtyFlag.Changed, ...extra }
 }
 
 // Patterns that interrupt a paragraph (CommonMark §4.1)

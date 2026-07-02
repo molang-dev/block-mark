@@ -16,7 +16,7 @@ export default function BlockCard({ block, style }) {
       </span>
       <div className="card-body">
         <div className="block-info">
-          {block.index} : {block.lineStart} ~ {block.lineEnd}
+          id:{block.id} ord:{block.order} {block.lineStart}~{block.lineEnd}
           <span className={`dirty-tag ${dirty === 2 ? 'dirty-tag-lines' : dirty === 1 ? 'dirty-tag-pos' : ''}`}> dirty: {dirty}</span>
         </div>
         <div className="lines">

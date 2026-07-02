@@ -35,7 +35,7 @@ function nd(type: number, extra?: Partial<Node>): Node {
 }
 
 function bl(type: number, lines: string[], extra?: Partial<Block>): Block {
-  return { type, lines, index: 0, lineStart: 0, lineEnd: 0, dirty: DirtyFlag.Changed, ...extra }
+  return { type, lines, id: 0, order: 0, lineStart: 0, lineEnd: 0, dirty: DirtyFlag.Changed, ...extra }
 }
 
 // ─── G-B-01  Table ───────────────────────────────────────────────────────────

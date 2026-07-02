@@ -201,7 +201,7 @@ export default function App() {
         <div className="bar-left">行 {cursorLine}</div>
         <div className="bar-divider" />
         <div className="bar-right">
-          {matchedBlock ? `${matchedBlock.index} : ${cursorLine}` : '—'}
+          {matchedBlock ? `id:${matchedBlock.id} ord:${matchedBlock.order} ln:${cursorLine}` : '—'}
         </div>
       </div>
     </div>
