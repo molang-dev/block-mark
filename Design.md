@@ -1,4 +1,4 @@
-# mdparser — 设计文档
+# blockmark — 设计文档
 
 ## 项目定位
 
@@ -259,7 +259,7 @@ npm run build    # tsup → dist/
 npm test         # vitest run（41 个测试用例）
 ```
 
-`demo/react/vite.config.js` 中 `mdparser` alias 指向 `../../src/index.ts`，开发时直接使用源码。
+`demo/react/vite.config.js` 中 `blockmark` alias 指向 `../../src/index.ts`，开发时直接使用源码。
 
 
 * 插入或者删除时，需要标记dirty

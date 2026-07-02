@@ -1,5 +1,5 @@
 {
-  "name": "mdparser",
+  "name": "blockmark",
   "version": "1.0.0",
   "type": "module",
   "description": "Markdown parser — split into heading-delimited blocks",

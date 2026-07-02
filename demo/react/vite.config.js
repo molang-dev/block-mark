@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      mdparser: path.resolve(__dirname, '../../src/index.ts'),
+      blockmark: path.resolve(__dirname, '../../src/index.ts'),
     },
   },
   server: {

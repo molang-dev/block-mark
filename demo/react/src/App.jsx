@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { VariableSizeList } from 'react-window'
-import { BlockMaker, blockMakerGFM, blockMakerHtml } from 'mdparser'
+import { BlockMaker, blockMakerGFM, blockMakerHtml } from 'blockmark'
 import lightCssUrl from '../../../src/light.css?url'
 import darkCssUrl  from '../../../src/dark.css?url'
 import BlockCard from './BlockCard.jsx'

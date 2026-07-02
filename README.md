@@ -17,7 +17,7 @@
 ## 安装
 
 ```bash
-npm install blockmaker
+npm install blockmark
 ```
 
 ---
@@ -27,7 +27,7 @@ npm install blockmaker
 ### 基础用法（CommonMark）
 
 ```typescript
-import { BlockMaker } from 'blockmaker'
+import { BlockMaker } from 'blockmark'
 
 const bm = new BlockMaker()
   .changed((blocks, isEnd) => {
@@ -42,9 +42,9 @@ const bm = new BlockMaker()
 ### GFM + HTML 渲染
 
 ```typescript
-import { BlockMaker } from 'blockmaker'
-import { blockMakerGFM } from 'blockmaker/plugins/gfm'
-import { blockMakerHtml } from 'blockmaker/plugins/html'
+import { BlockMaker } from 'blockmark'
+import { blockMakerGFM } from 'blockmark/plugins/gfm'
+import { blockMakerHtml } from 'blockmark/plugins/html'
 
 const bm = new BlockMaker()
   .use(blockMakerGFM)    // 启用 GFM：表格、删除线、Task List、脚注等
@@ -160,7 +160,7 @@ GFM 类型编号从 100 起，用户自定义从 200 起。
 ## 自定义插件
 
 ```typescript
-import type { BlockMakerPlugin } from 'blockmaker'
+import type { BlockMakerPlugin } from 'blockmark'
 
 // 示例：解析 :::warning ... ::: 告警块
 const blockMakerAlert: BlockMakerPlugin = {

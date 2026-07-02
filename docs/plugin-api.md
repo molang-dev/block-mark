@@ -215,7 +215,7 @@ bmk-alert-warning   告警类型修饰
 ### 实现
 
 ```typescript
-import type { BlockMakerPlugin, Block, Node, BlockContext } from 'blockmaker'
+import type { BlockMakerPlugin, Block, Node, BlockContext } from 'blockmark'
 
 // 自定义类型编号（从 200 起）
 const AlertBlockType = {
@@ -283,9 +283,9 @@ export const blockMakerAlert: BlockMakerPlugin = {
 ### 使用
 
 ```typescript
-import { BlockMaker } from 'blockmaker'
-import { blockMakerGFM } from 'blockmaker/plugins/gfm'
-import { blockMakerHtml } from 'blockmaker/plugins/html'
+import { BlockMaker } from 'blockmark'
+import { blockMakerGFM } from 'blockmark/plugins/gfm'
+import { blockMakerHtml } from 'blockmark/plugins/html'
 import { blockMakerAlert } from './my-plugins/alert'
 
 const bm = new BlockMaker({ showTypeName: false })
