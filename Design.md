@@ -370,3 +370,32 @@ npm test         # vitest run（41 个测试用例）
 - 取消静态同时 import `light.css` + `dark.css`（两者冲突导致 dark 样式永远覆盖）
 - 改用 Vite `?url` import 获取 CSS 文件路径，运行时动态创建/替换 `<link id="blockmark-theme">` 标签实现主题切换
 - React 通过 `useEffect([darkMode])` 驱动；Vue 通过 `watchEffect` 驱动
+
+### BlockMaker — 核心架构（重写）
+
+- `BlockMaker` 替换原 `Parser`，插件化设计：`.use(plugin)` 注册插件，`.changed(fn).parse(md)` 触发解析
+- 插件可扩展 blockRules / inlineRules / blockProcessors / htmlBlock / htmlNode / blockTypeNames / nodeTypeNames
+- 类型编号方案：`{2位模块id}{1位类别}{3位序号}`，Core Block=101xxx、Core Node=102xxx、GFM Block=111xxx、GFM Node=112xxx，彻底消除 block/node 类型碰撞
+
+### blockMakerHtml 插件
+
+- 所有 HTML 仅由 markdown node tree 生成，htmlBlock 渲染器统一调用 `ctx.renderNodes(block.markdown ?? [])`，block 层不直接拼 HTML
+- 所有生成元素 ID 使用 `bmd-` 前缀（如 `bmd-fn-1`、`bmd-h-0`）
+
+### GFM 插件
+
+- GFM 脚注：`[^id]` → FootnoteRef 节点（`<sup>`）；`[^id]: content` → FootnoteDef 块，内容收集到 node.children，demo 统一拼装至页尾 `<ol>`
+- GFM 表格：splitTableRow 先 trimStart 再剥 `|`，消除前导空格导致的幽灵空列
+- GFM 删除线 `~~text~~` / 任务列表 `[x]`、`[ ]` / 表格对齐 align
+
+### indentedCode 选项
+
+- `indentedCode?: boolean`（默认 true）：false 时 ≥4 空格/Tab 前导不识别为代码块，同时过滤掉 `indented-code` 规则
+- false 模式下在 `_subdivide` 预处理阶段剥除 ≥4 空格前导再匹配规则，使原本被缩进屏蔽的语法（heading、list、table 等）正常识别
+
+### 自动目录（TOC）
+
+- `toc?: boolean` 选项（默认 false）：开启后在 `allBlocks()` 中的第一个 Heading 之后插入虚拟 TOC block（`BlockType.Toc = 101009`）
+- 每次 `_runHtmlPass()` 后重建 TOC：全部 Heading 的 html 注入 `id="bmd-h-{index}"`，TOC html 用栈算法按 h1/h2/h3 层级生成嵌套 `<ul>`
+- `changed` 回调在 `isEnd: true` 时传 `allBlocks()`，TOC block 对调用方可见
+- TOC html 无 className，结构：`<nav><ul><li><a href="#bmd-h-N">text</a><ul>...</ul></li></ul></nav>`
