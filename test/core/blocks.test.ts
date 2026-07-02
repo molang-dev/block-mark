@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { BlockMaker } from '../../src/core/BlockMaker'
-import { BlockType, DirtyFlag } from '../../src/core/types'
+import { BlockType, NodeType, DirtyFlag } from '../../src/core/types'
 
 function parse(md: string) {
   let result: any[] = []
@@ -163,7 +163,7 @@ describe('Link Reference Definition', () => {
   it('resolves forward references', () => {
     const blocks = parse('[foo]\n\n[foo]: https://example.com')
     const para = blocks[0]
-    const linkNode = para.markdown?.[0]?.children?.find((n: any) => n.type === 6 /* LinkRef */)
+    const linkNode = para.markdown?.[0]?.children?.find((n: any) => n.type === NodeType.LinkRef)
     expect(linkNode?.url).toBe('https://example.com')
   })
 
@@ -240,7 +240,7 @@ describe('List', () => {
     const listNode = blocks[0].markdown?.[0]
     const parentItem = listNode?.children?.[0]
     // parent item should contain a nested list
-    const nested = parentItem?.children?.find((n: any) => n.type === 15 /* List */)
+    const nested = parentItem?.children?.find((n: any) => n.type === NodeType.List)
     expect(nested).toBeDefined()
   })
 
