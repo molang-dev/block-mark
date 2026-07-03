@@ -31,7 +31,7 @@ const highlight = (code, lang) =>
   lang && hljs.getLanguage(lang)
     ? hljs.highlight(code, { language: lang }).value
     : null
-const p = new BlockMaker({ toc: true })
+const p = new BlockMaker()
   .use(blockMakerGFM)
   .use(blockMakerMermaid({ mermaid }))
   .use(blockMakerMath)

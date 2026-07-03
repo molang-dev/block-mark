@@ -137,7 +137,6 @@ export class BlockMaker {
   private _nodeTypeNames: Map<number, string>
   private _blocks: Block[] = []
   private _rawLines: string[] = []
-  private _tocBlock: Block | null = null
   private _defs: Map<string, { url: string; blockIndex: number }> = new Map()
   private _refs: Array<{ node: Node; blockIndex: number }> = []
   private _plugins: BlockMakerPlugin[] = []
@@ -398,12 +397,7 @@ export class BlockMaker {
   }
 
   allBlocks(): Block[] {
-    if (!this._opts.toc || !this._tocBlock) return this._blocks
-    const firstHeadingIdx = this._blocks.findIndex(b => b.type === BlockType.Heading)
-    if (firstHeadingIdx < 0) return this._blocks
-    const result = [...this._blocks]
-    result.splice(firstHeadingIdx + 1, 0, this._tocBlock)
-    return result
+    return this._blocks
   }
 
   findBlocks(start: number, end: number): Block[] {
@@ -675,7 +669,8 @@ export class BlockMaker {
   }
 
   private _buildToc(): void {
-    if (!this._opts.toc) return
+    const tocBlocks = this._blocks.filter(b => b.type === BlockType.Toc)
+    if (tocBlocks.length === 0) return
 
     // Inject id into every heading's html
     for (const bl of this._blocks) {
@@ -685,7 +680,10 @@ export class BlockMaker {
     }
 
     const headings = this._blocks.filter(b => b.type === BlockType.Heading)
-    if (headings.length === 0) { this._tocBlock = null; return }
+    if (headings.length === 0) {
+      for (const tb of tocBlocks) tb.html = ''
+      return
+    }
 
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const parts: string[] = []
@@ -713,11 +711,8 @@ export class BlockMaker {
     }
     while (stack.length > 0) { parts.push('</li>', '</ul>'); stack.pop() }
 
-    if (!this._tocBlock) {
-      this._tocBlock = { type: BlockType.Toc, lines: [], id: 0, order: -1, lineStart: -1, lineEnd: -1, dirty: DirtyFlag.Clean }
-      if (this._opts.showTypeName) this._tocBlock.typeName = 'Toc'
-    }
-    this._tocBlock.html = `<nav>${parts.join('')}</nav>`
+    const tocHtml = `<nav>${parts.join('')}</nav>`
+    for (const tb of tocBlocks) tb.html = tocHtml
   }
 
   private _notify(changedBlocks: Block[], deletedIds: number[], isEnd: boolean): void {

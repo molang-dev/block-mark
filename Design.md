@@ -478,6 +478,24 @@ npm test         # vitest run（41 个测试用例）
 - Heading 处理器改以 `content.length === 1` 区分 ATX 和 Setext（原来的 `lines.length === 1` 在有 trailing blank 时会误判）
 - Fenced Code 处理器改在 `content`（已剥离空行）上检测 closing fence，避免 closing fence 被误收入 text
 
+### YAML Front Matter 插件
+
+- `blockMakerFrontMatter` 插件：`FrontMatterBlockType.FrontMatter = 131001`
+- block rule priority 5（最优先），仅在文档绝对第 0 行（`at===0 && docLineStart===0`）触发 `---` 开头的 front matter 块
+- 内置极简 YAML 解析器：支持字符串、带引号字符串、数字、布尔、null/~、行内数组 `[a,b]`、块级序列 `- item`、注释行（`#`）
+- 解析结果 JSON 序列化存入 `block.meta`；`block.markdown = []`，`block.html = ''`，文档不渲染任何内容
+- `BlockContext` 新增 `docLineStart: number`（`_subdivide` 中 lines[0] 的绝对行号），供 block rule 判断是否处于文档起点
+- `_splitSections` 增加 front matter 区间保护：首行为 `---` 时，不在区间内触发 heading 断节，直到遇到闭合 `---` 或 `...`
+
+### `[toc]` 内联目录语法（core 内置）
+
+- 删除 `BlockMakerOptions.toc?: boolean` 选项和虚拟 `_tocBlock` 注入机制
+- `[toc]`（忽略大小写，不支持省略 `]`）独立成行 → 真实 `BlockType.Toc = 101009` block，block rule priority 85
+- `_buildToc()` 改为在 `_blocks` 中查找真实 Toc block，设置 `tb.html = '<nav>...</nav>'`；无 Heading 时设 `''`
+- `allBlocks()` 直接返回 `_blocks`，不再插入虚拟 block
+- 支持文档中任意位置放置、多个 `[toc]` 同时存在，所有 Toc block 获得相同 nav html
+- Heading html 仅在存在 Toc block 时才注入 `id="bmd-h-{id}"`
+
 ### HTML block 配对标签整体收集
 
 - type-6 HTML block 规则中，非 void 的配对标签（`<div>`、`<details>`、`<section>` 等）不再在空行截止，改为深度追踪 open/close，收集到 `</tag>` 深度归零为止

@@ -278,7 +278,18 @@ const list: BlockRule = {
   },
 }
 
-// ─── B-10  Thematic Break ────────────────────────────────────────────────────
+// ─── B-10  TOC placeholder ───────────────────────────────────────────────────
+
+const toc: BlockRule = {
+  name: 'toc',
+  priority: 85,
+  tryCollect(lines, at) {
+    if (!/^\[toc\]$/i.test(lines[at] ?? '')) return null
+    return b(BlockType.Toc, [lines[at]])
+  },
+}
+
+// ─── B-11  Thematic Break ────────────────────────────────────────────────────
 
 const hr: BlockRule = {
   name: 'hr',
@@ -320,6 +331,7 @@ export const coreBlockRules: BlockRule[] = [
   linkDef,
   blockQuote,
   list,
+  toc,
   hr,
   paragraph,
 ]
