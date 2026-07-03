@@ -1,19 +1,18 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { VariableSizeList } from 'react-window'
-import { BlockMaker, blockMakerGFM, blockMakerHtml, blockMakerCode } from 'blockmark'
+import { BlockMaker, blockMakerGFM, blockMakerHtml, blockMakerCode, blockMakerMermaid, blockMakerMath, blockMakerThemeCss, blockMakerDom, blockMakerFrontMatter } from 'blockmark'
+import mermaid from 'mermaid'
+import renderMathInElement from 'katex/contrib/auto-render'
+import 'katex/dist/katex.min.css'
 import hljs from 'highlight.js'
-import lightCssUrl    from '../../../src/light.css?url'
-import darkCssUrl     from '../../../src/dark.css?url'
-import hljsLightUrl  from 'highlight.js/styles/github.css?url'
-import hljsDarkUrl   from 'highlight.js/styles/github-dark.css?url'
+import hljsLightUrl from 'highlight.js/styles/github.css?url'
+import hljsDarkUrl  from 'highlight.js/styles/github-dark.css?url'
+import lightCssUrl from '../../../src/light.css?url'
+import darkCssUrl  from '../../../src/dark.css?url'
 import BlockCard from './BlockCard.jsx'
 import './App.css'
-import './md-custom.css'
-import testMdRaw from '../../../mytest/test.md?raw'
-
-function loadMDFile(_path) {
-  return testMdRaw
-}
+// import './md-custom.css'
+import testMdRaw from '../../../test/test.md?raw'
 
 function estimateHeight(block) {
   return 44 + block.lines.length * 22
@@ -31,27 +30,47 @@ function charToRowCol(text, charPos) {
 }
 
 export default function App() {
-  // setter 中转 ref，让 initRef 里的 onUpdate 回调能访问到 useState 的 setter
-  const setRevRef   = useRef(null)
-  const listRef     = useRef(null)
-  const textareaRef = useRef(null)
+  const setRevRef      = useRef(null)
+  const listRef        = useRef(null)
+  const textareaRef    = useRef(null)
   const prevContentRef = useRef(null)
+  const blocksRef      = useRef([])
 
-  // 组件内一次性初始化（useRef 懒 init，StrictMode 安全）
   const initRef = useRef(null)
   if (!initRef.current) {
     const highlight = (code, lang) =>
       lang && hljs.getLanguage(lang)
         ? hljs.highlight(code, { language: lang }).value
-        : hljs.highlightAuto(code).value
-    const p = new BlockMaker().use(blockMakerGFM).use(blockMakerHtml).use(blockMakerCode(highlight))
-    const content = loadMDFile('../test/test.md')
+        : null
+    const p = new BlockMaker()
+      .use(blockMakerGFM)
+      .use(blockMakerMermaid({ mermaid }))
+      .use(blockMakerMath)
+      .use(blockMakerHtml)
+      .use(blockMakerCode(highlight))
+      .use(blockMakerFrontMatter)
+      .use(blockMakerThemeCss({ id: 'blockmark-theme', light: lightCssUrl, dark: darkCssUrl }))
+      .use(blockMakerThemeCss({ id: 'hljs-theme',      light: hljsLightUrl, dark: hljsDarkUrl }))
+      .use(blockMakerDom({ id: 'bmd-preview' }))
+    const content = testMdRaw
     p.changed((_changed, isEnd) => {
       if (!isEnd) return
+      // 在回调内同步拍快照，捕获 dirty 标记（parse 返回后会立即清零）
+      blocksRef.current = p.allBlocks().map(b => ({ ...b }))
       setRevRef.current?.()
       listRef.current?.resetAfterIndex(0)
+      setTimeout(() => {
+        mermaid.run()
+        const el = document.querySelector('.preview-content')
+        if (el) renderMathInElement(el, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$',  right: '$',  display: false },
+          ],
+          throwOnError: false,
+        })
+      }, 0)
     })
-    p.parse(content)   // 触发 changed；此时 setRevRef 还是 null，跳过 setState
     initRef.current = { parser: p, content }
     prevContentRef.current = content
   }
@@ -62,30 +81,16 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false)
 
   useEffect(() => {
-    let link = document.getElementById('blockmark-theme')
-    if (!link) {
-      link = document.createElement('link')
-      link.id  = 'blockmark-theme'
-      link.rel = 'stylesheet'
-      document.head.appendChild(link)
-    }
-    link.href = darkMode ? darkCssUrl : lightCssUrl
+    initRef.current.parser.parse(initRef.current.content)
+  }, [])
 
-    let hljsLink = document.getElementById('hljs-theme')
-    if (!hljsLink) {
-      hljsLink = document.createElement('link')
-      hljsLink.id  = 'hljs-theme'
-      hljsLink.rel = 'stylesheet'
-      document.head.appendChild(hljsLink)
-    }
-    hljsLink.href = darkMode ? hljsDarkUrl : hljsLightUrl
+  useEffect(() => {
+    initRef.current.parser.applyTheme(darkMode ? 'dark' : 'light')
   }, [darkMode])
 
-  // 每次 render 挂上最新的 rev setter（stable ref，无副作用）
   setRevRef.current = () => setRev(r => r + 1)
 
-  // 直接读 parser 内部数组，零拷贝
-  const blocks = initRef.current.parser.allBlocks()
+  const blocks = blocksRef.current
 
   const parse = useCallback(() => {
     const p = initRef.current.parser
@@ -117,25 +122,13 @@ export default function App() {
     const pos2 = charToRowCol(oldContent, oldEnd)
     const content = newContent.slice(start, newEnd)
 
-    const p = initRef.current.parser
-    p.update(pos1.row, pos1.col, pos2.row, pos2.col, content)
+    initRef.current.parser.update(pos1.row, pos1.col, pos2.row, pos2.col, content)
   }, [])
 
   const handleTextareaEvent = useCallback(() => {
     const ta = textareaRef.current
     if (ta) setCursorLine(cursorLineNumber(ta.value, ta.selectionStart))
   }, [])
-
-  const FN_TYPE = 111002
-  const previewHtml = useMemo(() => {
-    const mainParts = [], fnParts = []
-    for (const b of blocks) {
-      if (b.type === FN_TYPE) fnParts.push(`<li id="bmd-fn-${b.meta}">${b.html ?? ''}</li>`)
-      else mainParts.push(b.html ?? '')
-    }
-    const fnSection = fnParts.length ? `<hr><ol>${fnParts.join('')}</ol>` : ''
-    return mainParts.join('') + fnSection
-  }, [rev])
 
   const matchedBlock = useMemo(() => {
     if (blocks.length === 0) return null
@@ -194,7 +187,7 @@ export default function App() {
               {darkMode ? 'Light' : 'Dark'}
             </button>
           </div>
-          <div className="preview-content blockmark" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+          <div id="bmd-preview" className="preview-content blockmark" />
         </div>
       </div>
       <div className="bottom-bar">

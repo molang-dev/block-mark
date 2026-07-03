@@ -716,45 +716,45 @@ describe('changed callback content vs allBlocks()', () => {
 // ─── 13. trailing blank absorbed into preceding block ─────────────────────────
 
 describe('trailing blank → absorbed into preceding block (ALL types)', () => {
-  it("'# h1\\n\\n# h2': h1 absorbs blank(0-1) Clean, h2 at 2-2 Clean", () => {
+  it("'# h1\\n\\n# h2': h1 absorbs blank(0-1) Changed, h2 at 2-2 Changed", () => {
     const bs = bm('# h1\n\n# h2').allBlocks()
     expect(bs.length).toBe(2)
     expect(bs[0].type).toBe(BlockType.Heading)
     expect(bs[0].lineStart).toBe(0);  expect(bs[0].lineEnd).toBe(1)
-    expect(bs[0].dirty).toBe(DirtyFlag.Clean)
+    expect(bs[0].dirty).toBe(DirtyFlag.Changed)
     expect(bs[1].type).toBe(BlockType.Heading)
     expect(bs[1].lineStart).toBe(2);  expect(bs[1].lineEnd).toBe(2)
-    expect(bs[1].dirty).toBe(DirtyFlag.Clean)
+    expect(bs[1].dirty).toBe(DirtyFlag.Changed)
   })
 
-  it("'# h1\\n\\n\\n# h2': h1 absorbs 2 blanks(0-2) Clean, h2 at 3-3 Clean", () => {
+  it("'# h1\\n\\n\\n# h2': h1 absorbs 2 blanks(0-2) Changed, h2 at 3-3 Changed", () => {
     const bs = bm('# h1\n\n\n# h2').allBlocks()
     expect(bs.length).toBe(2)
     expect(bs[0].type).toBe(BlockType.Heading)
     expect(bs[0].lineStart).toBe(0);  expect(bs[0].lineEnd).toBe(2)
-    expect(bs[0].dirty).toBe(DirtyFlag.Clean)
+    expect(bs[0].dirty).toBe(DirtyFlag.Changed)
     expect(bs[1].type).toBe(BlockType.Heading)
     expect(bs[1].lineStart).toBe(3);  expect(bs[1].lineEnd).toBe(3)
-    expect(bs[1].dirty).toBe(DirtyFlag.Clean)
+    expect(bs[1].dirty).toBe(DirtyFlag.Changed)
   })
 
-  it("'# h1\\n': count=1, Heading 0-1, Clean", () => {
+  it("'# h1\\n': count=1, Heading 0-1, Changed", () => {
     const bs = bm('# h1\n').allBlocks()
     expect(bs.length).toBe(1)
     expect(bs[0].type).toBe(BlockType.Heading)
     expect(bs[0].lineStart).toBe(0);  expect(bs[0].lineEnd).toBe(1)
-    expect(bs[0].dirty).toBe(DirtyFlag.Clean)
+    expect(bs[0].dirty).toBe(DirtyFlag.Changed)
   })
 
-  it("'<div>\\n</div>\\n\\n# h2': Html absorbs blank(0-2) Clean, h2 Heading 3-3 Clean", () => {
+  it("'<div>\\n</div>\\n\\n# h2': Html absorbs blank(0-2) Changed, h2 Heading 3-3 Changed", () => {
     const bs = bm('<div>\n</div>\n\n# h2').allBlocks()
     expect(bs.length).toBe(2)
     expect(bs[0].type).toBe(BlockType.Html)
     expect(bs[0].lineStart).toBe(0);  expect(bs[0].lineEnd).toBe(2)
-    expect(bs[0].dirty).toBe(DirtyFlag.Clean)
+    expect(bs[0].dirty).toBe(DirtyFlag.Changed)
     expect(bs[1].type).toBe(BlockType.Heading)
     expect(bs[1].lineStart).toBe(3);  expect(bs[1].lineEnd).toBe(3)
-    expect(bs[1].dirty).toBe(DirtyFlag.Clean)
+    expect(bs[1].dirty).toBe(DirtyFlag.Changed)
   })
 
   it("'# h1\\n# h2' insert \\n at (1,0): h1 gap-filled Changed(0-1), h2 Shifted(2-2), ids preserved", () => {
