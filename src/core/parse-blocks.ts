@@ -162,7 +162,21 @@ const htmlBlock: BlockRule = {
     }
     const t6 = line.match(/^( {0,3})<\/?([a-zA-Z][a-zA-Z0-9-]*)/)
     if (t6 && HTML6_TAGS.test(t6[2])) {
-      while (i < lines.length && lines[i] !== '') { collected.push(lines[i]); i++ }
+      const tag = t6[2].toLowerCase()
+      const VOID = /^(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i
+      if (VOID.test(tag)) {
+        while (i < lines.length && lines[i] !== '') { collected.push(lines[i]); i++ }
+      } else {
+        const openRe  = new RegExp(`<${tag}\\b`, 'gi')
+        const closeRe = new RegExp(`</${tag}\\s*>`, 'gi')
+        let depth = 0
+        while (i < lines.length) {
+          const l = lines[i]
+          depth += (l.match(openRe) ?? []).length - (l.match(closeRe) ?? []).length
+          collected.push(l); i++
+          if (depth <= 0) break
+        }
+      }
       return collected.length > 0 ? b(BlockType.Html, collected) : null
     }
     return null
