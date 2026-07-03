@@ -151,8 +151,6 @@ export interface BlockMakerOptions {
   batchSizes?: number[]
   /** When false, only fenced code (``` / ~~~) is recognized; ≥4-space indent is not code. Default: true */
   indentedCode?: boolean
-  /** When true, inserts a TOC block after the first heading. Default: false */
-  toc?: boolean
 }
 
 export type ChangedCallback = (blocks: Block[], isEnd: boolean) => void

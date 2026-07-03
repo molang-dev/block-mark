@@ -248,6 +248,7 @@ export class InlineScanner {
   }
 
   private _bracket(): string | null {
+    const saved = this.pos
     let depth = 1, s = ''
     while (this.pos < this.src.length) {
       const c = this._eat()
@@ -255,6 +256,7 @@ export class InlineScanner {
       else if (c === ']') { if (--depth === 0) return s }
       s += c
     }
+    this.pos = saved
     return null
   }
 

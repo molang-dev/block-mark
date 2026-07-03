@@ -174,9 +174,10 @@ describe('Link', () => {
     expect(link?.url).toBe('https://example.com')
   })
 
-  it('unclosed [ is literal', () => {
+  it('unclosed [ is literal — text not swallowed', () => {
     const nodes = inlineNodes('[unclosed')
-    expect(nodes.some((n: any) => n.text === '[')).toBe(true)
+    const text = nodes.map((n: any) => n.text ?? '').join('')
+    expect(text).toBe('[unclosed')
   })
 })
 
