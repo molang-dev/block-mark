@@ -114,6 +114,16 @@ function stripBq(line: string): string {
   return line.replace(/^( {0,3})> ?/, '')
 }
 
+function peelBlanks(lines: string[]): { content: string[]; brs: Node[] } {
+  const content = [...lines]
+  const brs: Node[] = []
+  while (content.length > 0 && content[content.length - 1] === '') {
+    content.pop()
+    brs.unshift({ type: NodeType.Br })
+  }
+  return { content, brs }
+}
+
 // ─── BlockMaker ──────────────────────────────────────────────────────────────
 
 export class BlockMaker {
@@ -353,11 +363,10 @@ export class BlockMaker {
       }
     }
 
+    this._rawLines = rawLines  // update early so _mergeTrailingBlanks can read new content
     this._mergeTrailingBlanks()
     this._assignTypeNames()
     this._runHtmlPass()
-
-    this._rawLines = rawLines  // save updated raw lines
 
     const dirty = this._blocks.filter(b => b.dirty > 0)
     if (dirty.length === 0) {
@@ -443,6 +452,10 @@ export class BlockMaker {
           block.lineEnd   = block.lineStart + block.lines.length - 1
           blocks.push(block)
           i += block.lines.length
+          // Absorb trailing blank lines into this block
+          while (i < ruleLines.length && ruleLines[i] === '') {
+            block.lines.push(lines[i]); block.lineEnd++; i++
+          }
           ctx.blockIndex++
           matched = true
           break
@@ -458,16 +471,31 @@ export class BlockMaker {
     const out: Block[] = []
     for (const bl of blocks) {
       if (bl.type === BlockType.Paragraph && bl.lines.length === 1 && bl.lines[0] === '') {
-        if (out.length && out[out.length - 1].type !== BlockType.Html) {
-          out[out.length - 1].lines.push(''); out[out.length - 1].lineEnd++
-        } else out.push(bl)
+        if (out.length) { out[out.length - 1].lines.push(''); out[out.length - 1].lineEnd++ }
+        else out.push(bl)
       } else out.push(bl)
     }
     return out
   }
 
   private _mergeTrailingBlanks(): void {
-    // Already handled in _mergeTrailing per section; this is a no-op for now
+    for (let i = 0; i < this._blocks.length - 1; i++) {
+      const cur  = this._blocks[i]
+      const next = this._blocks[i + 1]
+      if (cur.lineEnd + 1 < next.lineStart) {
+        const blanks = next.lineStart - cur.lineEnd - 1
+        for (let k = 0; k < blanks; k++) { cur.lines.push(''); cur.lineEnd++ }
+        if (cur.dirty < DirtyFlag.Shifted) cur.dirty = DirtyFlag.Shifted
+      }
+    }
+    if (this._blocks.length > 0) {
+      const last   = this._blocks[this._blocks.length - 1]
+      const docEnd = this._rawLines.length - 1
+      while (last.lineEnd < docEnd && (this._rawLines[last.lineEnd + 1] ?? '') === '') {
+        last.lines.push(''); last.lineEnd++
+        if (last.dirty < DirtyFlag.Shifted) last.dirty = DirtyFlag.Shifted
+      }
+    }
   }
 
   private _makeInlineCtx(blockIndex: number): InlineContext {
@@ -498,48 +526,57 @@ export class BlockMaker {
 
   private _registerCoreProcessors(): void {
     this._blockProcessors.set(BlockType.Heading, (block, ctx) => {
-      const lines = [...block.lines]
-      let text = lines[0]
-      if (block.depth && lines.length === 1) {
+      const { content, brs } = peelBlanks(block.lines)
+      let text = content[0] ?? ''
+      if (content.length === 1) {
         // ATX: strip leading # and trailing #
         text = text.replace(/^( {0,3})#{1,6}\s*/, '').replace(/\s+#+\s*$/, '').trim()
-      } else if (lines.length >= 2) {
-        // Setext: join all but last line
-        text = lines.slice(0, -1).join('\n')
+      } else {
+        // Setext: join all but last line (underline)
+        text = content.slice(0, -1).join('\n')
       }
       const nd: Node = { type: NodeType.Heading, depth: block.depth ?? 1, children: ctx.parseInline(text) }
-      return [nd]
+      return [nd, ...brs]
     })
 
     this._blockProcessors.set(BlockType.Paragraph, (block, ctx) => {
-      const text = block.lines.filter(l => l !== '').join('\n')
-      return text ? [{ type: NodeType.Paragraph, children: ctx.parseInline(text) }] : []
+      const { content, brs } = peelBlanks(block.lines)
+      const text = content.join('\n')
+      return text ? [{ type: NodeType.Paragraph, children: ctx.parseInline(text) }, ...brs] : brs
     })
 
     this._blockProcessors.set(BlockType.Code, (block) => {
-      let lines = block.lines
-      const isFenced = /^\s*(`{3,}|~{3,})/.test(lines[0])
+      const { content, brs } = peelBlanks(block.lines)
+      const isFenced = /^\s*(`{3,}|~{3,})/.test(content[0] ?? '')
       let text: string
       if (isFenced) {
-        const closeIdx = lines.length > 1 && /^\s*(`{3,}|~{3,})/.test(lines[lines.length - 1]) ? lines.length - 1 : undefined
-        text = lines.slice(1, closeIdx).join('\n')
+        const closeIdx = content.length > 1 && /^\s*(`{3,}|~{3,})/.test(content[content.length - 1]) ? content.length - 1 : undefined
+        text = content.slice(1, closeIdx).join('\n')
       } else {
         // Indented: strip 4 spaces or 1 tab
-        text = lines.map(l => l.replace(/^( {4}|\t)/, '')).join('\n')
+        text = content.map(l => l.replace(/^( {4}|\t)/, '')).join('\n')
       }
       const nd: Node = { type: NodeType.Code, text, lang: block.meta || undefined }
-      return [nd]
+      return [nd, ...brs]
     })
 
-    this._blockProcessors.set(BlockType.Hr, () => [{ type: NodeType.Hr }])
-    this._blockProcessors.set(BlockType.Html, (block) => [{ type: NodeType.Html, text: block.lines.join('\n') }])
+    this._blockProcessors.set(BlockType.Hr, (block) => {
+      const { brs } = peelBlanks(block.lines)
+      return [{ type: NodeType.Hr }, ...brs]
+    })
+    this._blockProcessors.set(BlockType.Html, (block) => {
+      const { content, brs } = peelBlanks(block.lines)
+      return [{ type: NodeType.Html, text: content.join('\n') }, ...brs]
+    })
     this._blockProcessors.set(BlockType.Def, (block) => {
+      const { brs } = peelBlanks(block.lines)
       const nd: Node = { type: NodeType.Def, defId: block.meta, text: block.lines[0] }
-      return [nd]
+      return [nd, ...brs]
     })
 
     this._blockProcessors.set(BlockType.Blockquote, (block, ctx) => {
-      const stripped = block.lines.map(stripBq)
+      const { content, brs } = peelBlanks(block.lines)
+      const stripped = content.map(stripBq)
       const inner = ctx.subdivide(stripped, block.lineStart)
       const children: Node[] = []
       for (const ib of inner) {
@@ -549,12 +586,13 @@ export class BlockMaker {
           children.push(...proc(ib, iCtx))
         }
       }
-      return [{ type: NodeType.Blockquote, children }]
+      return [{ type: NodeType.Blockquote, children }, ...brs]
     })
 
     this._blockProcessors.set(BlockType.List, (block, ctx) => {
+      const { content, brs } = peelBlanks(block.lines)
       const { node } = buildListNode(
-        block.lines, 0,
+        content, 0,
         ctx.parseInline,
         ctx.subdivide,
         (b) => {
@@ -562,7 +600,7 @@ export class BlockMaker {
           return p ? p(b, ctx) : []
         },
       )
-      return [node]
+      return [node, ...brs]
     })
   }
 

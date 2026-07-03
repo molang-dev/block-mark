@@ -471,6 +471,13 @@ npm test         # vitest run（41 个测试用例）
 - block.meta 存类型小写字符串，内容行剥去 `> ` 前缀后走 inline 解析
 - 输出 `<blockquote data-alert="note">` + `<p><strong>Title</strong></p>` + 内容，无 className，用 `data-alert` 区分类型
 
+### Trailing blank → Br node in block.markdown
+
+- 所有 block 类型（ATX Heading、Setext Heading、Paragraph、Fenced Code、Indented Code、Blockquote、List、Hr、Html Block、GFM Table、FootnoteDef）被吸收进 `block.lines` 的尾部空行，在 `block.markdown` 末尾生成对应数量的 `Br` 节点
+- 新增模块级 `peelBlanks(lines)` helper（BlockMaker.ts + gfm.ts 各自一份），从 `lines` 末尾剥离空行并返回 `{ content, brs }`
+- Heading 处理器改以 `content.length === 1` 区分 ATX 和 Setext（原来的 `lines.length === 1` 在有 trailing blank 时会误判）
+- Fenced Code 处理器改在 `content`（已剥离空行）上检测 closing fence，避免 closing fence 被误收入 text
+
 ### HTML block 配对标签整体收集
 
 - type-6 HTML block 规则中，非 void 的配对标签（`<div>`、`<details>`、`<section>` 等）不再在空行截止，改为深度追踪 open/close，收集到 `</tag>` 深度归零为止

@@ -1,7 +1,17 @@
 import {
   BlockMakerPlugin, BlockRule, InlineRule, Block, Node, BlockContext,
-  InlineContext, BlockType, DirtyFlag, BlockProcessorCtx, HtmlCtx,
+  InlineContext, BlockType, NodeType, DirtyFlag, BlockProcessorCtx, HtmlCtx,
 } from '../core/types'
+
+function peelBlanks(lines: string[]): { content: string[]; brs: Node[] } {
+  const content = [...lines]
+  const brs: Node[] = []
+  while (content.length > 0 && content[content.length - 1] === '') {
+    content.pop()
+    brs.unshift({ type: NodeType.Br })
+  }
+  return { content, brs }
+}
 import { EMOJI_MAP } from './emoji-map'
 
 // ─── GFM-specific type numbers (module 11) ───────────────────────────────────
@@ -247,7 +257,7 @@ function buildMathBlockNode(block: Block): Node[] {
 }
 
 function buildTableNode(block: Block, ctx: BlockProcessorCtx): Node[] {
-  const lines  = block.lines
+  const { content, brs } = peelBlanks(block.lines)
   const align: Array<'left' | 'right' | 'center' | null> = block.meta
     ? JSON.parse(block.meta)
     : []
@@ -263,17 +273,17 @@ function buildTableNode(block: Block, ctx: BlockProcessorCtx): Node[] {
 
   return [{
     type: GFMNodeType.Table,
-    children: [buildRow(lines[0]), ...lines.slice(2).map(l => buildRow(l))],
-  }]
+    children: [buildRow(content[0]), ...content.slice(2).map(l => buildRow(l))],
+  }, ...brs]
 }
 
 function buildFootnoteDefNode(block: Block, ctx: BlockProcessorCtx): Node[] {
+  const { content, brs } = peelBlanks(block.lines)
   const id = block.meta ?? ''
-  const lines = block.lines
-  const firstLine = lines[0].replace(/^( {0,3})\[\^[^\]]+\]:\s*/, '')
-  const contentLines = [firstLine, ...lines.slice(1)]
+  const firstLine = content[0].replace(/^( {0,3})\[\^[^\]]+\]:\s*/, '')
+  const contentLines = [firstLine, ...content.slice(1)]
   const children = ctx.parseInline(contentLines.join('\n'))
-  return [{ type: GFMNodeType.FootnoteDef, defId: id, children }]
+  return [{ type: GFMNodeType.FootnoteDef, defId: id, children }, ...brs]
 }
 
 // ─── HTML node renderers ──────────────────────────────────────────────────────
