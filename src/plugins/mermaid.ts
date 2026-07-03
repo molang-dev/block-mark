@@ -51,7 +51,9 @@ export function blockMakerMermaid(config?: MermaidConfig): BlockMakerPlugin {
     htmlBlock: {
       [MermaidBlockType.Diagram]: (block: Block) => {
         const lines = block.lines
-        const code = lines.slice(1, lines[lines.length - 1]?.match(/^( {0,3})(`{3,}|~{3,})\s*$/) ? -1 : undefined).join('\n')
+        let closeIdx = lines.length - 1
+        while (closeIdx > 0 && lines[closeIdx] === '') closeIdx--
+        const code = lines.slice(1, lines[closeIdx]?.match(/^( {0,3})(`{3,}|~{3,})\s*$/) ? closeIdx : undefined).join('\n')
         return `<pre class="mermaid" data-source="${esc(code)}">${esc(code)}</pre>`
       },
     },

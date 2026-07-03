@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { BlockMaker } from '../../src/core/BlockMaker'
-import { BlockType, DirtyFlag, Block } from '../../src/core/types'
+import { BlockType, NodeType, DirtyFlag, Block } from '../../src/core/types'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -101,6 +101,20 @@ describe('line insertion — lineDelta > 0', () => {
     expect(bs[1].id).toBe(id2);       expect(bs[1].dirty).toBe(DirtyFlag.Shifted)
   })
 
+  it('"# H1\\n# H2" insert \\n before H2 (row1=1,col=0): H1 Changed+absorbs blank(0-1), H2 Shifted(2-2)', () => {
+    const p = bm('# H1\n# H2')
+    const [id1, id2] = p.allBlocks().map(b => b.id)
+    p.update(1, 0, 1, 0, '\n')
+    const bs = p.allBlocks()
+    expect(bs.length).toBe(2)
+    expect(bs[0].type).toBe(BlockType.Heading)
+    expect(bs[0].lineStart).toBe(0);  expect(bs[0].lineEnd).toBe(1)
+    expect(bs[0].id).toBe(id1);       expect(bs[0].dirty).toBe(DirtyFlag.Changed)
+    expect(bs[1].type).toBe(BlockType.Heading)
+    expect(bs[1].lineStart).toBe(2);  expect(bs[1].lineEnd).toBe(2)
+    expect(bs[1].id).toBe(id2);       expect(bs[1].dirty).toBe(DirtyFlag.Shifted)
+  })
+
   it('"# H1\\n# H2\\n# H3" insert \\n after H2: H1 Clean(0-0), H2 Changed+absorbs blank(1-2), H3 Shifted(3-3)', () => {
     const p = bm('# H1\n# H2\n# H3')
     const [id1, id2, id3] = p.allBlocks().map(b => b.id)
@@ -158,7 +172,7 @@ describe('line deletion — lineDelta < 0', () => {
     expect(bs.every(b => b.id !== id3)).toBe(true)  // H3's original id deleted
   })
 
-  it('"# H1\\n\\nparagraph" delete paragraph: heading absorbs trailing blanks(lineEnd=2), Shifted', () => {
+  it('"# H1\\n\\nparagraph" delete paragraph: heading absorbs trailing blanks(lineEnd=2), Changed', () => {
     const p = bm('# H1\n\nparagraph')
     const [id1, id2] = p.allBlocks().map(b => b.id)
     p.update(2, 0, 2, 9, '')
@@ -166,7 +180,7 @@ describe('line deletion — lineDelta < 0', () => {
     expect(bs.length).toBe(1)
     expect(bs[0].type).toBe(BlockType.Heading)
     expect(bs[0].lineStart).toBe(0);  expect(bs[0].lineEnd).toBe(2)   // absorbs trailing blanks
-    expect(bs[0].id).toBe(id1);       expect(bs[0].dirty).toBe(DirtyFlag.Shifted)
+    expect(bs[0].id).toBe(id1);       expect(bs[0].dirty).toBe(DirtyFlag.Changed)
     expect(bs.every(b => b.id !== id2)).toBe(true)
   })
 
@@ -180,7 +194,7 @@ describe('line deletion — lineDelta < 0', () => {
 // ─── 4. append after last block ──────────────────────────────────────────────
 
 describe('append after all blocks', () => {
-  it('"# H1\\n## H2" append "\\n### H3": 3 Headings, H1 Clean(0-0), H2 Changed(1-1), H3 new Changed(2-2)', () => {
+  it('"# H1\\n## H2" append "\\n### H3": 3 Headings, H1 Clean(0-0), H2 Shifted(1-1), H3 new Changed(2-2)', () => {
     const p = bm('# H1\n## H2')
     const [id1, id2] = p.allBlocks().map(b => b.id)
     p.update(1, 5, 1, 5, '\n### H3')
@@ -191,7 +205,7 @@ describe('append after all blocks', () => {
     expect(bs[0].id).toBe(id1);       expect(bs[0].dirty).toBe(DirtyFlag.Clean)
     expect(bs[1].type).toBe(BlockType.Heading)
     expect(bs[1].lineStart).toBe(1);  expect(bs[1].lineEnd).toBe(1)
-    expect(bs[1].id).toBe(id2);       expect(bs[1].dirty).toBe(DirtyFlag.Changed)
+    expect(bs[1].id).toBe(id2);       expect(bs[1].dirty).toBe(DirtyFlag.Shifted)
     expect(bs[2].type).toBe(BlockType.Heading)
     expect(bs[2].lineStart).toBe(2);  expect(bs[2].lineEnd).toBe(2)
     expect(bs[2].id).toBeGreaterThan(id2)
@@ -512,7 +526,7 @@ describe('block id stability across updates', () => {
     expect(bs[2].id).toBe(id3);       expect(bs[2].dirty).toBe(DirtyFlag.Shifted)
   })
 
-  it('"# H1\\n## H2" append "\\n# H3": H1 Clean, H2 Changed, H3 fresh id > H2', () => {
+  it('"# H1\\n## H2" append "\\n# H3": H1 Clean, H2 Shifted, H3 fresh id > H2', () => {
     const p = bm('# H1\n## H2')
     const [id1, id2] = p.allBlocks().map(b => b.id)
     p.update(1, 5, 1, 5, '\n# H3')
@@ -523,7 +537,7 @@ describe('block id stability across updates', () => {
     expect(bs[0].id).toBe(id1);       expect(bs[0].dirty).toBe(DirtyFlag.Clean)
     expect(bs[1].type).toBe(BlockType.Heading)
     expect(bs[1].lineStart).toBe(1);  expect(bs[1].lineEnd).toBe(1)
-    expect(bs[1].id).toBe(id2);       expect(bs[1].dirty).toBe(DirtyFlag.Changed)
+    expect(bs[1].id).toBe(id2);       expect(bs[1].dirty).toBe(DirtyFlag.Shifted)
     expect(bs[2].type).toBe(BlockType.Heading)
     expect(bs[2].lineStart).toBe(2);  expect(bs[2].lineEnd).toBe(2)
     expect(bs[2].id).toBeGreaterThan(id2)
@@ -743,7 +757,7 @@ describe('trailing blank → absorbed into preceding block (ALL types)', () => {
     expect(bs[1].dirty).toBe(DirtyFlag.Clean)
   })
 
-  it("'# h1\\n# h2' insert \\n at (1,0): h1 gap-filled Shifted(0-1), h2 Changed(2-2), ids preserved", () => {
+  it("'# h1\\n# h2' insert \\n at (1,0): h1 gap-filled Changed(0-1), h2 Shifted(2-2), ids preserved", () => {
     const p = bm('# h1\n# h2')
     const [h1B, h2B] = p.allBlocks()
     p.update(1, 0, 1, 0, '\n')
@@ -751,9 +765,19 @@ describe('trailing blank → absorbed into preceding block (ALL types)', () => {
     expect(bs.length).toBe(2)
     expect(bs[0].type).toBe(BlockType.Heading)
     expect(bs[0].lineStart).toBe(0);  expect(bs[0].lineEnd).toBe(1)
-    expect(bs[0].id).toBe(h1B.id);   expect(bs[0].dirty).toBe(DirtyFlag.Shifted)
+    expect(bs[0].id).toBe(h1B.id);   expect(bs[0].dirty).toBe(DirtyFlag.Changed)
     expect(bs[1].type).toBe(BlockType.Heading)
     expect(bs[1].lineStart).toBe(2);  expect(bs[1].lineEnd).toBe(2)
-    expect(bs[1].id).toBe(h2B.id);   expect(bs[1].dirty).toBe(DirtyFlag.Changed)
+    expect(bs[1].id).toBe(h2B.id);   expect(bs[1].dirty).toBe(DirtyFlag.Shifted)
+  })
+
+  it("'# h1\\n# h2' insert \\n at (1,0): h1.markdown ends with Br node", () => {
+    const p = bm('# h1\n# h2')
+    p.update(1, 0, 1, 0, '\n')
+    const h1 = p.allBlocks()[0]
+    const md = h1.markdown ?? []
+    expect(md.length).toBe(2)
+    expect(md[0].type).toBe(NodeType.Heading)
+    expect(md[1].type).toBe(NodeType.Br)
   })
 })
