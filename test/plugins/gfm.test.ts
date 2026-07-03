@@ -176,6 +176,11 @@ describe('GFM FootnoteRef — inline', () => {
     const ref = nodes.find((n: any) => n.type === GFMNodeType.FootnoteRef)
     expect(ref?.defId).toBe('abc')
   })
+
+  it('[^] empty content is not a footnote ref', () => {
+    const nodes = inlineNodes('[^]')
+    expect(nodes.every((n: any) => n.type !== GFMNodeType.FootnoteRef)).toBe(true)
+  })
 })
 
 // ─── G-B-03 Alert ────────────────────────────────────────────────────────────
@@ -254,7 +259,6 @@ describe('GFM MathBlock — block recognition', () => {
 
   it('$$ alone (unclosed) → collected as-is', () => {
     const blocks = parse('$$\nx^2')
-    // Should collect remaining lines (or be MathBlock with unclosed)
     expect(blocks[0].type).toBe(GFMBlockType.MathBlock)
   })
 
@@ -310,15 +314,72 @@ describe('GFM Strikethrough', () => {
     expect(text).toBe('hello')
   })
 
-  it('unclosed ~~ is literal text', () => {
-    const nodes = inlineNodes('~~unclosed')
-    expect(nodes.every((n: any) => n.type !== GFMNodeType.Del)).toBe(true)
-  })
-
   it('~~two words~~ → single Del node', () => {
     const nodes = inlineNodes('~~hello world~~')
     expect(nodes[0].type).toBe(GFMNodeType.Del)
     const text = nodes[0].children?.map((n: any) => n.text).join('')
     expect(text).toBe('hello world')
+  })
+
+  it('single ~ is not strikethrough', () => {
+    const nodes = inlineNodes('~not~')
+    expect(nodes.every((n: any) => n.type !== GFMNodeType.Del)).toBe(true)
+  })
+
+  it('unclosed ~~ is literal text', () => {
+    const nodes = inlineNodes('~~unclosed')
+    expect(nodes.every((n: any) => n.type !== GFMNodeType.Del)).toBe(true)
+  })
+
+  it('~~**bold del**~~ → Del wrapping Strong', () => {
+    const nodes = inlineNodes('~~**bold del**~~')
+    expect(nodes[0].type).toBe(GFMNodeType.Del)
+    const inner = nodes[0].children?.[0]
+    expect(inner?.type).toBe(NodeType.Strong)
+  })
+})
+
+// ─── G-I-02 Task List ────────────────────────────────────────────────────────
+
+describe('GFM Task List', () => {
+  it('[x] is checked', () => {
+    const blocks = parse('- [x] done')
+    const firstItem = blocks[0].markdown?.[0]?.children?.[0]
+    const checkbox = firstItem?.children?.[0]?.children?.[0]
+    expect(checkbox?.type).toBe(GFMNodeType.Checkbox)
+    expect(checkbox?.text).toBe('x')
+  })
+
+  it('[ ] is unchecked', () => {
+    const blocks = parse('- [ ] todo')
+    const firstItem = blocks[0].markdown?.[0]?.children?.[0]
+    const checkbox = firstItem?.children?.[0]?.children?.[0]
+    expect(checkbox?.text).toBe(' ')
+  })
+
+  it('[X] uppercase works', () => {
+    const blocks = parse('- [X] done')
+    const firstItem = blocks[0].markdown?.[0]?.children?.[0]
+    const checkbox = firstItem?.children?.[0]?.children?.[0]
+    expect(checkbox?.text?.toLowerCase()).toBe('x')
+  })
+
+  it('multiple task items', () => {
+    const blocks = parse('- [x] Done task\n- [ ] Todo task\n- [ ] Another todo')
+    const listNode = blocks[0].markdown?.[0]
+    expect(listNode?.children).toHaveLength(3)
+  })
+})
+
+// ─── GFM typeNames ───────────────────────────────────────────────────────────
+
+describe('GFM typeNames', () => {
+  it('Table block has typeName=Table with showTypeName', () => {
+    const md = '| A |\n|---|\n| 1 |'
+    let result: any[] = []
+    new BlockMaker({ showTypeName: true }).use(blockMakerGFM)
+      .changed((blocks, isEnd) => { if (isEnd) result = blocks })
+      .parse(md)
+    expect(result[0].typeName).toBe('Table')
   })
 })
