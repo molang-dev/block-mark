@@ -458,8 +458,9 @@ export class BlockMaker {
     const out: Block[] = []
     for (const bl of blocks) {
       if (bl.type === BlockType.Paragraph && bl.lines.length === 1 && bl.lines[0] === '') {
-        if (out.length) { out[out.length - 1].lines.push(''); out[out.length - 1].lineEnd++ }
-        else out.push(bl)
+        if (out.length && out[out.length - 1].type !== BlockType.Html) {
+          out[out.length - 1].lines.push(''); out[out.length - 1].lineEnd++
+        } else out.push(bl)
       } else out.push(bl)
     }
     return out

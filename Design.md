@@ -470,4 +470,11 @@ npm test         # vitest run（41 个测试用例）
 - block rule priority 59，检测 `> {0,4}[!NOTE/TIP/IMPORTANT/WARNING/CAUTION]`（`>` 后允许 0-4 个空格，等效于 blockquote 消耗1空格后剩余≤3不计入 indentedCode）
 - block.meta 存类型小写字符串，内容行剥去 `> ` 前缀后走 inline 解析
 - 输出 `<blockquote data-alert="note">` + `<p><strong>Title</strong></p>` + 内容，无 className，用 `data-alert` 区分类型
+
+### HTML block 配对标签整体收集
+
+- type-6 HTML block 规则中，非 void 的配对标签（`<div>`、`<details>`、`<section>` 等）不再在空行截止，改为深度追踪 open/close，收集到 `</tag>` 深度归零为止
+- void 元素（`hr`、`br`、`meta` 等）保留原行为：遇空行截止
+- 效果：`<details>...</details>` 内含空行或多段内容时，整体作为一个 Html block 输出，`blockMakerDom` 渲染后浏览器可正常折叠；`<div>` 内的 `# 标题` 不再被识别为 Heading block
+- 内部内容作为原始 HTML，不走 markdown 解析
 - light/dark.css 追加 Alert 样式：彩色左边框 + 淡色/深色背景 + 标题色 + CSS `::before` emoji 图标，颜色对标 GitHub
