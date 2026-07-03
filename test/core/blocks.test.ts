@@ -298,7 +298,7 @@ describe('Block line numbers', () => {
     const heading = blocks[0]
     const para = blocks[blocks.length - 1]
     expect(heading.lineStart).toBe(0)
-    expect(heading.lineEnd).toBe(0)
+    expect(heading.lineEnd).toBe(1)   // absorbs the trailing blank line
     expect(para.lineStart).toBeGreaterThan(0)
   })
 })
