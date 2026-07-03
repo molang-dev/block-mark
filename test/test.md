@@ -1,3 +1,11 @@
+---
+title: 我的文章
+date: 2024-01-15
+tags: [vue, markdown]
+author: jonyang
+draft: false
+---
+
 # GFM 完整语法演示
 
    ## 1. 基础格式化

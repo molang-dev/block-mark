@@ -13,4 +13,5 @@ export { blockMakerMermaid, MermaidBlockType } from './plugins/mermaid'
 export { blockMakerMath } from './plugins/math'
 export { blockMakerThemeCss } from './plugins/theme-css'
 export { blockMakerDom } from './plugins/dom'
+export { blockMakerFrontMatter, FrontMatterBlockType } from './plugins/front-matter'
 

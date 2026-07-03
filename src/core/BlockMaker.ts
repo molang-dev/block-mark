@@ -424,6 +424,7 @@ export class BlockMaker {
     let secStart = 0
     let inFence = false
     let fenceMark = ''
+    let inFrontMatter = lines.length > 0 && lines[0] === '---'
 
     const push = (start: number) => {
       if (current.length) { sections.push({ lines: current, lineStart: start }); current = [] }
@@ -431,7 +432,9 @@ export class BlockMaker {
 
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i]
-      if (inFence) {
+      if (inFrontMatter) {
+        if (i > 0 && (l === '---' || l === '...')) inFrontMatter = false
+      } else if (inFence) {
         if (new RegExp(`^( {0,3})${fenceMark}{3,}\\s*$`).test(l)) inFence = false
       } else {
         const fm = l.match(/^( {0,3})(`{3,}|~{3,})/)
@@ -453,7 +456,7 @@ export class BlockMaker {
       ? lines.map(l => /^( {4,}|\t)/.test(l) ? l.replace(/^[ \t]+/, '') : l)
       : lines
 
-    const ctx: BlockContext = { defs: this._defs, refs: this._refs, blockIndex: this._blocks.length }
+    const ctx: BlockContext = { defs: this._defs, refs: this._refs, blockIndex: this._blocks.length, docLineStart: lineStart }
     const blocks: Block[] = []
     let i = 0
 

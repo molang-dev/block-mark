@@ -92,6 +92,7 @@ export interface BlockContext {
   defs: Map<string, { url: string; blockIndex: number }>
   refs: Array<{ node: Node; blockIndex: number }>
   blockIndex: number
+  docLineStart: number  // absolute line number of lines[0] in _subdivide
 }
 
 export interface InlineContext {
