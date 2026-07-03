@@ -781,3 +781,148 @@ describe('trailing blank → absorbed into preceding block (ALL types)', () => {
     expect(md[1].type).toBe(NodeType.Br)
   })
 })
+
+// ─── 14. rapid Enter key — hold Enter at start of ### h3 ─────────────────────
+
+describe('rapid Enter at start of ### h3 (20×)', () => {
+  it('3 blocks throughout, lineEnd === lineStart + lines.length - 1 for all', () => {
+    const p = bm('# H1\n## H2\n### h3')
+    let row = 2
+    for (let i = 0; i < 20; i++) {
+      p.update(row, 0, row, 0, '\n')
+      row++
+    }
+    const bs = p.allBlocks()
+    expect(bs).toHaveLength(3)
+    for (const b of bs) {
+      expect(b.lineEnd).toBe(b.lineStart + b.lines.length - 1)
+    }
+  })
+
+  it('H1 stays at line 0, H3 is at line 22 after 20 inserts', () => {
+    const p = bm('# H1\n## H2\n### h3')
+    let row = 2
+    for (let i = 0; i < 20; i++) {
+      p.update(row, 0, row, 0, '\n')
+      row++
+    }
+    const bs = p.allBlocks()
+    expect(bs[0].lineStart).toBe(0);  expect(bs[0].lineEnd).toBe(0)
+    expect(bs[2].lineStart).toBe(22); expect(bs[2].lineEnd).toBe(22)
+  })
+
+  it('H2 absorbs all 20 blank lines: lineStart=1 lineEnd=21, lines.length=21', () => {
+    const p = bm('# H1\n## H2\n### h3')
+    let row = 2
+    for (let i = 0; i < 20; i++) {
+      p.update(row, 0, row, 0, '\n')
+      row++
+    }
+    const h2 = p.allBlocks()[1]
+    expect(h2.lineStart).toBe(1)
+    expect(h2.lineEnd).toBe(21)
+    expect(h2.lines.length).toBe(21)
+    expect(h2.lines[0]).toBe('## H2')
+    expect(h2.lines.slice(1).every((l: string) => l === '')).toBe(true)
+  })
+
+  it('H2.markdown ends with 20 Br nodes after 20 inserts', () => {
+    const p = bm('# H1\n## H2\n### h3')
+    let row = 2
+    for (let i = 0; i < 20; i++) {
+      p.update(row, 0, row, 0, '\n')
+      row++
+    }
+    const h2 = p.allBlocks()[1]
+    const md = h2.markdown ?? []
+    expect(md[0].type).toBe(NodeType.Heading)
+    expect(md.length).toBe(21) // 1 Heading + 20 Br
+    expect(md.slice(1).every((n: any) => n.type === NodeType.Br)).toBe(true)
+  })
+
+  it('blocks are contiguous: each block.lineStart = prev.lineEnd + 1', () => {
+    const p = bm('# H1\n## H2\n### h3')
+    let row = 2
+    for (let i = 0; i < 20; i++) {
+      p.update(row, 0, row, 0, '\n')
+      row++
+    }
+    const bs = p.allBlocks()
+    for (let i = 1; i < bs.length; i++) {
+      expect(bs[i].lineStart).toBe(bs[i - 1].lineEnd + 1)
+    }
+  })
+})
+
+// ─── 15. rapid Enter in multi-block document ─────────────────────────────────
+
+describe('rapid Enter in multi-block document (20×)', () => {
+  // Closer to the real scenario: preamble + multi-item list + heading + another list
+  const DOC = [
+    '# Title',          // 0
+    '',                 // 1
+    '## Section',       // 2
+    '',                 // 3
+    '1. step one',      // 4
+    '2. step two',      // 5
+    '   1. sub 2.1',    // 6
+    '   2. sub 2.2',    // 7
+    '',                 // 8  ← absorbed into list
+    '3. step three',    // 9
+    '',                 // 10 ← absorbed into list
+    '### Sub heading',  // 11
+    '',                 // 12
+    '- task A',         // 13
+    '- task B',         // 14
+  ].join('\n')
+
+  it('all blocks contiguous after 20 rapid Enters at start of line 9', () => {
+    const p = bm(DOC)
+    let row = 9   // start of "3. step three"
+    for (let i = 0; i < 20; i++) {
+      p.update(row, 0, row, 0, '\n')
+      row++
+    }
+    const bs = p.allBlocks()
+    for (let i = 1; i < bs.length; i++) {
+      expect(bs[i].lineStart).toBe(bs[i - 1].lineEnd + 1)
+    }
+  })
+
+  it('lineEnd === lineStart + lines.length - 1 for every block after 20 Enters', () => {
+    const p = bm(DOC)
+    let row = 9
+    for (let i = 0; i < 20; i++) {
+      p.update(row, 0, row, 0, '\n')
+      row++
+    }
+    for (const b of p.allBlocks()) {
+      expect(b.lineEnd).toBe(b.lineStart + b.lines.length - 1)
+    }
+  })
+
+  it('no block has lineStart > lineEnd', () => {
+    const p = bm(DOC)
+    let row = 9
+    for (let i = 0; i < 20; i++) {
+      p.update(row, 0, row, 0, '\n')
+      row++
+    }
+    for (const b of p.allBlocks()) {
+      expect(b.lineStart).toBeLessThanOrEqual(b.lineEnd)
+    }
+  })
+
+  it('block lineStart values are strictly increasing', () => {
+    const p = bm(DOC)
+    let row = 9
+    for (let i = 0; i < 20; i++) {
+      p.update(row, 0, row, 0, '\n')
+      row++
+    }
+    const bs = p.allBlocks()
+    for (let i = 1; i < bs.length; i++) {
+      expect(bs[i].lineStart).toBeGreaterThan(bs[i - 1].lineStart)
+    }
+  })
+})

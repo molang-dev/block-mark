@@ -58,7 +58,7 @@ let prevContent = testMdRaw
 // 先注册回调，再 parse，让初始解析也走 changed
 p.changed((_changed, isEnd) => {
   if (!isEnd) return
-  blocks.value = [...p.allBlocks()]   // 浅拷贝：引用变化让 DynamicScroller 感知更新
+  blocks.value = p.allBlocks().map(b => ({ ...b }))  // 新对象：让 Vue/DynamicScroller 感知 mutation 了的属性
   nextTick(() => {
     mermaid.run()
     const el = document.querySelector('.preview-content')
