@@ -2,7 +2,7 @@
 import { shallowRef, ref, computed, watchEffect, nextTick, onMounted } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { BlockMaker, blockMakerGFM, blockMakerHtml, blockMakerCode, blockMakerMermaid, blockMakerMath, blockMakerThemeCss, blockMakerDom } from 'blockmark'
+import { BlockMaker, blockMakerGFM, blockMakerHtml, blockMakerCode, blockMakerMermaid, blockMakerMath, blockMakerThemeCss, blockMakerDom,blockMakerFrontMatter } from 'blockmark'
 import mermaid from 'mermaid'
 import renderMathInElement from 'katex/contrib/auto-render'
 import 'katex/dist/katex.min.css'
@@ -37,6 +37,7 @@ const p = new BlockMaker({ toc: true })
   .use(blockMakerMath)
   .use(blockMakerHtml)
   .use(blockMakerCode(highlight))
+  .use(blockMakerFrontMatter)
   .use(blockMakerThemeCss({ id: 'blockmark-theme', light: lightCssUrl, dark: darkCssUrl }))
   .use(blockMakerThemeCss({ id: 'hljs-theme',      light: hljsLightUrl, dark: hljsDarkUrl }))
   .use(blockMakerDom({ id: 'bmd-preview' }))
