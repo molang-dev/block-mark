@@ -284,7 +284,7 @@ const toc: BlockRule = {
   name: 'toc',
   priority: 85,
   tryCollect(lines, at) {
-    if (!/^\[toc\]$/i.test(lines[at] ?? '')) return null
+    if (!/^ {0,3}\[toc\]\s*$/i.test(lines[at] ?? '')) return null
     return b(BlockType.Toc, [lines[at]])
   },
 }

@@ -36,9 +36,20 @@ describe('TOC — recognition', () => {
     expect(blocks.every(b => b.type !== BlockType.Toc)).toBe(true)
   })
 
-  it('[toc] with leading spaces — not a Toc block', () => {
-    const blocks = parse('  [toc]')
+  it('[toc] with 1–3 leading spaces → Toc block', () => {
+    expect(parse('   [toc]').some(b => b.type === BlockType.Toc)).toBe(true)
+    expect(parse('  [toc]').some(b => b.type === BlockType.Toc)).toBe(true)
+    expect(parse(' [toc]').some(b => b.type === BlockType.Toc)).toBe(true)
+  })
+
+  it('[toc] with 4+ leading spaces — not a Toc block', () => {
+    const blocks = parse('    [toc]')
     expect(blocks.every(b => b.type !== BlockType.Toc)).toBe(true)
+  })
+
+  it('[toc] with trailing whitespace → Toc block', () => {
+    expect(parse('[toc]   ').some(b => b.type === BlockType.Toc)).toBe(true)
+    expect(parse('[toc]\t').some(b => b.type === BlockType.Toc)).toBe(true)
   })
 
   it('[toc] with trailing text — not a Toc block', () => {

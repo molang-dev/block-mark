@@ -223,8 +223,6 @@ export class BlockMaker {
     this._assignTypeNames()
     this._runHtmlPass()
     this._notify(this._blocks, deletedIds, true)
-    // Reset dirty flags after parse — parse creates a fresh baseline
-    for (const b of this._blocks) b.dirty = DirtyFlag.Clean
     return this
   }
 
