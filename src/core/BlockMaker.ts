@@ -348,6 +348,13 @@ export class BlockMaker {
       newBlocks[i].order = blockOrder++
       newBlocks[i].id = i < oldBlocks.length ? oldBlocks[i].id : this._nextId++
       this._processBlock(newBlocks[i])
+      // If content is identical to old block, downgrade Changed to Shifted/Clean
+      if (i < oldBlocks.length) {
+        const nb = newBlocks[i], ob = oldBlocks[i]
+        if (nb.lines.length === ob.lines.length && nb.lines.every((l, j) => l === ob.lines[j])) {
+          nb.dirty = lineDelta !== 0 ? DirtyFlag.Shifted : DirtyFlag.Clean
+        }
+      }
     }
 
     // Splice into _blocks
@@ -364,7 +371,14 @@ export class BlockMaker {
     }
 
     this._rawLines = rawLines  // update early so _mergeTrailingBlanks can read new content
+    const dirtySnapshot = this._blocks.map(b => b.dirty)
     this._mergeTrailingBlanks()
+    // Re-process blocks whose lines were extended by _mergeTrailingBlanks
+    for (let i = 0; i < this._blocks.length; i++) {
+      if (this._blocks[i].dirty === DirtyFlag.Changed && dirtySnapshot[i] < DirtyFlag.Changed) {
+        this._processBlock(this._blocks[i])
+      }
+    }
     this._assignTypeNames()
     this._runHtmlPass()
 
@@ -485,7 +499,7 @@ export class BlockMaker {
       if (cur.lineEnd + 1 < next.lineStart) {
         const blanks = next.lineStart - cur.lineEnd - 1
         for (let k = 0; k < blanks; k++) { cur.lines.push(''); cur.lineEnd++ }
-        if (cur.dirty < DirtyFlag.Shifted) cur.dirty = DirtyFlag.Shifted
+        if (cur.dirty < DirtyFlag.Changed) cur.dirty = DirtyFlag.Changed
       }
     }
     if (this._blocks.length > 0) {
@@ -493,7 +507,7 @@ export class BlockMaker {
       const docEnd = this._rawLines.length - 1
       while (last.lineEnd < docEnd && (this._rawLines[last.lineEnd + 1] ?? '') === '') {
         last.lines.push(''); last.lineEnd++
-        if (last.dirty < DirtyFlag.Shifted) last.dirty = DirtyFlag.Shifted
+        if (last.dirty < DirtyFlag.Changed) last.dirty = DirtyFlag.Changed
       }
     }
   }

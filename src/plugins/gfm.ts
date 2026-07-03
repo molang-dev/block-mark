@@ -243,17 +243,18 @@ const ALERT_TITLES: Record<string, string> = {
 }
 
 function buildAlertNode(block: Block, ctx: BlockProcessorCtx): Node[] {
-  // strip leading "> " from each line (skip first line which is [!TYPE])
-  const contentLines = block.lines.slice(1).map(l => l.replace(/^( {0,3})> ?/, ''))
+  const { content, brs } = peelBlanks(block.lines)
+  const contentLines = content.slice(1).map(l => l.replace(/^( {0,3})> ?/, ''))
   const title = ALERT_TITLES[block.meta ?? ''] ?? ''
   const titleNode: Node = { type: GFMNodeType.AlertTitle, text: title }
   const children = ctx.parseInline(contentLines.join('\n'))
-  return [{ type: GFMNodeType.Alert, meta: block.meta, children: [titleNode, ...children] }]
+  return [{ type: GFMNodeType.Alert, meta: block.meta, children: [titleNode, ...children] }, ...brs]
 }
 
 function buildMathBlockNode(block: Block): Node[] {
-  const formula = block.lines.slice(1, -1).join('\n')
-  return [nd(GFMNodeType.MathBlock, { text: formula })]
+  const { content, brs } = peelBlanks(block.lines)
+  const formula = content.slice(1, -1).join('\n')
+  return [nd(GFMNodeType.MathBlock, { text: formula }), ...brs]
 }
 
 function buildTableNode(block: Block, ctx: BlockProcessorCtx): Node[] {
