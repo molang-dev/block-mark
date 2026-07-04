@@ -371,3 +371,28 @@ describe('Trailing blank → Br node in block.markdown', () => {
   })
 
 })
+
+// ─── block.lines 原文不变 ────────────────────────────────────────────────────
+
+function checkRaw(md: string) {
+  const raw = md.split('\n')
+  const blocks = parse(md)
+  for (const b of blocks) {
+    expect(b.lines).toEqual(raw.slice(b.lineStart, b.lineEnd + 1))
+  }
+}
+
+describe('block.lines === raw source lines (trailing-blank)', () => {
+  it('heading absorbs trailing blank — blank line is empty string', () =>
+    checkRaw('# H1\n\n# H2'))
+  it('paragraph absorbs multiple trailing blanks', () =>
+    checkRaw('para\n\n\n# H2'))
+  it('fenced code absorbs trailing blank', () =>
+    checkRaw('```\ncode\n```\n\n# H'))
+  it('blockquote absorbs trailing blank', () =>
+    checkRaw('> quote\n\nparagraph'))
+  it('list absorbs trailing blank', () =>
+    checkRaw('- item\n\n# H'))
+  it('last block absorbs trailing blanks at doc end', () =>
+    checkRaw('# H\n\n'))
+})

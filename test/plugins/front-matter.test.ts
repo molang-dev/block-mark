@@ -74,3 +74,24 @@ describe('FrontMatter — block structure', () => {
     expect(b.html).toBe('')
   })
 })
+
+// ─── block.lines 原文不变 ────────────────────────────────────────────────────
+
+describe('block.lines === raw source lines (front-matter)', () => {
+  it('front matter block lines match raw', () => {
+    const md = '---\ntitle: My Post\ndate: 2024-01-01\ntags: [a, b]\n---\n\n# Body'
+    const raw = md.split('\n')
+    const blocks = parse(md)
+    for (const b of blocks) {
+      expect(b.lines).toEqual(raw.slice(b.lineStart, b.lineEnd + 1))
+    }
+  })
+  it('front matter with # comment inside — lines match raw', () => {
+    const md = '---\ntitle: t\n# comment\ndate: 2024\n---\n\nparagraph'
+    const raw = md.split('\n')
+    const blocks = parse(md)
+    for (const b of blocks) {
+      expect(b.lines).toEqual(raw.slice(b.lineStart, b.lineEnd + 1))
+    }
+  })
+})
