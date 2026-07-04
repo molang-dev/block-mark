@@ -926,3 +926,40 @@ describe('rapid Enter in multi-block document (20×)', () => {
     }
   })
 })
+
+// ─── block.lines 原文不变 ────────────────────────────────────────────────────
+
+function checkRaw(p: BlockMaker, md: string) {
+  const raw = md.split('\n')
+  for (const b of p.allBlocks()) {
+    expect(b.lines).toEqual(raw.slice(b.lineStart, b.lineEnd + 1))
+  }
+}
+
+describe('block.lines === raw source lines (update)', () => {
+  it('after parse()', () => {
+    const md = '# H1\n\n```python\ndef f():\n    return 1\n```\n\nparagraph'
+    checkRaw(bm(md), md)
+  })
+
+  it('after update() — modified block lines match updated doc', () => {
+    const md = '# H1\n\nparagraph'
+    const p = bm(md)
+    const updated = '# H1\n\nnew text'
+    p.update(2, 0, 2, 9, 'new text')
+    checkRaw(p, updated)
+  })
+
+  it('after inserting newline — shifted blocks still match', () => {
+    const md = '# H1\n# H2'
+    const p = bm(md)
+    const updated = '# H1\n\n# H2'
+    p.update(1, 0, 1, 0, '\n')
+    checkRaw(p, updated)
+  })
+
+  it('fenced code with indented body — lines preserved after parse', () => {
+    const md = '```js\nfunction f() {\n    return 1;\n}\n```'
+    checkRaw(bm(md), md)
+  })
+})

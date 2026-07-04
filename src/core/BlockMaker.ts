@@ -111,7 +111,7 @@ function buildItemContent(
 // ─── Blockquote processing ───────────────────────────────────────────────────
 
 function stripBq(line: string): string {
-  return line.replace(/^( {0,3})> ?/, '')
+  return line.replace(/^[ \t]*> ?/, '')
 }
 
 function peelBlanks(lines: string[]): { content: string[]; brs: Node[] } {
@@ -148,7 +148,7 @@ export class BlockMaker {
   constructor(opts: BlockMakerOptions = {}) {
     this._opts = opts
     if (opts.batchSizes) this._batchSizes = opts.batchSizes
-    this._blockRules = opts.indentedCode === false
+    this._blockRules = opts.disableIndentedCode
       ? coreBlockRules.filter(r => r.name !== 'indented-code')
       : [...coreBlockRules]
     this._inlineRules = [...coreInlineRules]
@@ -443,26 +443,24 @@ export class BlockMaker {
   }
 
   _subdivide(lines: string[], lineStart: number): Block[] {
-    // When indented-code is disabled, strip ≥4 leading spaces/tabs (no longer code markers)
-    const ruleLines = this._opts.indentedCode === false
-      ? lines.map(l => /^( {4,}|\t)/.test(l) ? l.replace(/^[ \t]+/, '') : l)
-      : lines
-
-    const ctx: BlockContext = { defs: this._defs, refs: this._refs, blockIndex: this._blocks.length, docLineStart: lineStart }
+    const ctx: BlockContext = {
+      defs: this._defs, refs: this._refs, blockIndex: this._blocks.length,
+      docLineStart: lineStart, disableIndentedCode: this._opts.disableIndentedCode,
+    }
     const blocks: Block[] = []
     let i = 0
 
-    while (i < ruleLines.length) {
+    while (i < lines.length) {
       let matched = false
       for (const rule of this._blockRules) {
-        const block = rule.tryCollect(ruleLines, i, ctx)
+        const block = rule.tryCollect(lines, i, ctx)
         if (block) {
           block.lineStart = lineStart + i
           block.lineEnd   = block.lineStart + block.lines.length - 1
           blocks.push(block)
           i += block.lines.length
           // Absorb trailing blank lines into this block
-          while (i < ruleLines.length && ruleLines[i] === '') {
+          while (i < lines.length && lines[i] === '') {
             block.lines.push(lines[i]); block.lineEnd++; i++
           }
           ctx.blockIndex++

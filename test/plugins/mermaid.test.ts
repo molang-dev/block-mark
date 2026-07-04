@@ -67,3 +67,16 @@ describe('Mermaid — block.markdown and block.html', () => {
     expect(src).not.toContain('mermaid')
   })
 })
+
+// ─── block.lines 原文不变 ────────────────────────────────────────────────────
+
+describe('block.lines === raw source lines (mermaid)', () => {
+  it('mermaid block lines match raw', () => {
+    const md = '```mermaid\ngraph TD\n    A --> B\n```'
+    const raw = md.split('\n')
+    const blocks = parse(md)
+    for (const b of blocks) {
+      expect(b.lines).toEqual(raw.slice(b.lineStart, b.lineEnd + 1))
+    }
+  })
+})

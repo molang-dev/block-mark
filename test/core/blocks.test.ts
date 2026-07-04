@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { BlockMaker } from '../../src/core/BlockMaker'
 import { BlockType, NodeType, DirtyFlag } from '../../src/core/types'
 
-function parse(md: string) {
+function parse(md: string, opts?: ConstructorParameters<typeof BlockMaker>[0]) {
   let result: any[] = []
-  new BlockMaker().changed((blocks, isEnd) => { if (isEnd) result = blocks }).parse(md)
+  new BlockMaker(opts).changed((blocks, isEnd) => { if (isEnd) result = blocks }).parse(md)
   return result
 }
 
@@ -124,6 +124,25 @@ describe('Fenced Code Block', () => {
     const blocks = parse('```\nno lang\n```')
     expect(blocks[0].markdown?.[0]?.lang).toBeUndefined()
   })
+
+  it('indented body lines preserved — disableIndentedCode: false', () => {
+    const md = '```python\ndef f():\n    return 1\n```'
+    const b = parse(md, { disableIndentedCode: false })[0]
+    expect(b.markdown?.[0]?.text).toBe('def f():\n    return 1')
+  })
+
+  it('indented body lines preserved — disableIndentedCode: true', () => {
+    const md = '```python\ndef f():\n    return 1\n```'
+    const b = parse(md, { disableIndentedCode: true })[0]
+    expect(b.markdown?.[0]?.text).toBe('def f():\n    return 1')
+  })
+
+  it('indented body content identical regardless of disableIndentedCode', () => {
+    const md = '```js\nfunction f() {\n    return 1;\n}\n```'
+    const a = parse(md, { disableIndentedCode: false })[0].markdown?.[0]?.text
+    const b = parse(md, { disableIndentedCode: true })[0].markdown?.[0]?.text
+    expect(a).toBe(b)
+  })
 })
 
 // ─── B-06 HTML Block ─────────────────────────────────────────────────────────
@@ -148,6 +167,27 @@ describe('HTML Block', () => {
   it('unknown tag is not html block', () => {
     const blocks = parse('<custom-tag>\ncontent')
     expect(blocks[0].type).toBe(BlockType.Paragraph)
+  })
+
+  it('indented content preserved — disableIndentedCode: false', () => {
+    const md = '<div>\n    <p>hello</p>\n</div>'
+    const b = parse(md, { disableIndentedCode: false })[0]
+    expect(b.type).toBe(BlockType.Html)
+    expect(b.lines[1]).toBe('    <p>hello</p>')
+  })
+
+  it('indented content preserved — disableIndentedCode: true', () => {
+    const md = '<div>\n    <p>hello</p>\n</div>'
+    const b = parse(md, { disableIndentedCode: true })[0]
+    expect(b.type).toBe(BlockType.Html)
+    expect(b.lines[1]).toBe('    <p>hello</p>')
+  })
+
+  it('html block lines identical regardless of disableIndentedCode', () => {
+    const md = '<div>\n    <p>hello</p>\n    <p>world</p>\n</div>'
+    const a = parse(md, { disableIndentedCode: false })[0].lines
+    const b = parse(md, { disableIndentedCode: true })[0].lines
+    expect(a).toEqual(b)
   })
 })
 
@@ -319,5 +359,41 @@ describe('showTypeName', () => {
   it('does not set typeName by default', () => {
     const blocks = parse('# Hello')
     expect(blocks[0].typeName).toBeUndefined()
+  })
+})
+
+// ─── block.lines 原文不变 ────────────────────────────────────────────────────
+
+function checkRawLines(md: string) {
+  const raw = md.split('\n')
+  const blocks = parse(md)
+  for (const b of blocks) {
+    expect(b.lines).toEqual(raw.slice(b.lineStart, b.lineEnd + 1))
+  }
+}
+
+describe('block.lines === raw source lines (no modification)', () => {
+  it('heading', () => checkRawLines('# Hello World'))
+  it('paragraph', () => checkRawLines('some text here'))
+  it('hr', () => checkRawLines('---'))
+  it('blockquote', () => checkRawLines('> line one\n> line two'))
+  it('html block', () => checkRawLines('<div>\ncontent\n</div>'))
+  it('list with continuation', () => checkRawLines('- item\n  continued'))
+  it('link def', () => checkRawLines('[foo]: https://example.com'))
+  it('fenced code — indented body lines preserved', () =>
+    checkRawLines('```python\ndef f():\n    return 1\n    pass\n```'))
+  it('fenced code with blank line inside', () =>
+    checkRawLines('```js\nfoo()\n\nbar()\n```'))
+  it('indented code block (4 spaces)', () =>
+    checkRawLines('    line one\n    line two'))
+  it('multi-block document with blank separators', () =>
+    checkRawLines('# H1\n\n> quote\n\n```\n    code\n```\n\nparagraph'))
+  it('trailing blank absorbed into block — blank line is raw empty string', () => {
+    const md = '# H1\n\n# H2'
+    const raw = md.split('\n')
+    const blocks = parse(md)
+    // H1 absorbs the blank line
+    expect(blocks[0].lines).toEqual(raw.slice(blocks[0].lineStart, blocks[0].lineEnd + 1))
+    expect(blocks[0].lines[1]).toBe('')
   })
 })

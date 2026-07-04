@@ -93,6 +93,7 @@ export interface BlockContext {
   refs: Array<{ node: Node; blockIndex: number }>
   blockIndex: number
   docLineStart: number  // absolute line number of lines[0] in _subdivide
+  disableIndentedCode?: boolean
 }
 
 export interface InlineContext {
@@ -149,8 +150,8 @@ export interface BlockMakerPlugin {
 export interface BlockMakerOptions {
   showTypeName?: boolean
   batchSizes?: number[]
-  /** When false, only fenced code (``` / ~~~) is recognized; ≥4-space indent is not code. Default: true */
-  indentedCode?: boolean
+  /** When true, ≥4-space indent is NOT treated as code; only fenced code (``` / ~~~) is recognized. Default: false */
+  disableIndentedCode?: boolean
 }
 
 export type ChangedCallback = (blocks: Block[], isEnd: boolean) => void

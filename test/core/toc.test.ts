@@ -3,6 +3,15 @@ import { BlockMaker } from '../../src/core/BlockMaker'
 import { BlockType } from '../../src/core/types'
 import { blockMakerHtml } from '../../src/plugins/html'
 
+function checkRaw(md: string) {
+  const raw = md.split('\n')
+  const p = new BlockMaker()
+  p.parse(md)
+  for (const b of p.allBlocks()) {
+    expect(b.lines).toEqual(raw.slice(b.lineStart, b.lineEnd + 1))
+  }
+}
+
 function parse(md: string) {
   const p = new BlockMaker()
   p.parse(md)
@@ -179,4 +188,17 @@ describe('TOC — update()', () => {
     expect(after).toContain('H2')
     expect(after).not.toBe(before)
   })
+})
+
+// ─── block.lines 原文不变 ────────────────────────────────────────────────────
+
+describe('block.lines === raw source lines (toc)', () => {
+  it('[toc] block lines match raw', () =>
+    checkRaw('[toc]\n\n# H1\n\n## H2'))
+  it('[toc] with leading spaces — lines preserved', () =>
+    checkRaw('   [toc]\n\n# H1'))
+  it('[toc] with trailing whitespace — lines preserved', () =>
+    checkRaw('[toc]   \n\n# H1'))
+  it('multiple [toc] blocks — all lines match raw', () =>
+    checkRaw('[toc]\n\n# H1\n\n[toc]\n\n## H2'))
 })

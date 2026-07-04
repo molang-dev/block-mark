@@ -42,7 +42,7 @@ const bm = new BlockMaker()
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
 | `showTypeName` | `boolean` | `false` | 为每个 block / node 写入可读类型名（`block.typeName`、`node.typeName`），便于调试 |
-| `indentedCode` | `boolean` | `true` | `false` 时关闭 4 空格/Tab 缩进代码块识别，仅识别 fenced code（` ``` ` / `~~~`） |
+| `disableIndentedCode` | `boolean` | `false` | `true` 时关闭 4 空格/Tab 缩进代码块识别，仅识别 fenced code（` ``` ` / `~~~`） |
 | `batchSizes` | `number[]` | `[400,800,1600,3200]` | `changed()` 每批通知多少个 block；数组耗尽后固定用最后一个值 |
 
 ### `.use(plugin)`

@@ -44,7 +44,7 @@ const bm = new BlockMaker()
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `showTypeName` | `boolean` | `false` | Writes a human-readable type name onto every block (`block.typeName`) and node (`node.typeName`). Useful for debugging. |
-| `indentedCode` | `boolean` | `true` | When `false`, 4-space / tab-indented code blocks are not recognized. Only fenced code (` ``` ` / `~~~`) is treated as code. |
+| `disableIndentedCode` | `boolean` | `false` | When `true`, 4-space / tab-indented code blocks are not recognized. Only fenced code (` ``` ` / `~~~`) is treated as code. |
 | `batchSizes` | `number[]` | `[400,800,1600,3200]` | Number of blocks delivered per `changed()` call. The last value repeats once the array is exhausted. |
 
 ### `.use(plugin)`

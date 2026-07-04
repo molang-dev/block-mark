@@ -388,10 +388,10 @@ npm test         # vitest run（41 个测试用例）
 - GFM 表格：splitTableRow 先 trimStart 再剥 `|`，消除前导空格导致的幽灵空列
 - GFM 删除线 `~~text~~` / 任务列表 `[x]`、`[ ]` / 表格对齐 align
 
-### indentedCode 选项
+### disableIndentedCode 选项
 
-- `indentedCode?: boolean`（默认 true）：false 时 ≥4 空格/Tab 前导不识别为代码块，同时过滤掉 `indented-code` 规则
-- false 模式下在 `_subdivide` 预处理阶段剥除 ≥4 空格前导再匹配规则，使原本被缩进屏蔽的语法（heading、list、table 等）正常识别
+- `disableIndentedCode?: boolean`（默认 false）：true 时 ≥4 空格/Tab 前导不识别为代码块，同时过滤掉 `indented-code` 规则
+- true 模式下在 `_subdivide` 预处理阶段剥除 ≥4 空格前导再匹配规则，使原本被缩进屏蔽的语法（heading、list、table 等）正常识别；block.lines 始终保留原始行
 
 ### 自动目录（TOC）
 
@@ -467,7 +467,7 @@ npm test         # vitest run（41 个测试用例）
 ### GFM Alert 警告块
 
 - `GFMBlockType.Alert=111004`，`GFMNodeType.Alert=112011`，`GFMNodeType.AlertTitle=112012`
-- block rule priority 59，检测 `> {0,4}[!NOTE/TIP/IMPORTANT/WARNING/CAUTION]`（`>` 后允许 0-4 个空格，等效于 blockquote 消耗1空格后剩余≤3不计入 indentedCode）
+- block rule priority 59，检测 `> {0,4}[!NOTE/TIP/IMPORTANT/WARNING/CAUTION]`（`>` 后允许 0-4 个空格，等效于 blockquote 消耗1空格后剩余≤3不计入缩进代码块范围）
 - block.meta 存类型小写字符串，内容行剥去 `> ` 前缀后走 inline 解析
 - 输出 `<blockquote data-alert="note">` + `<p><strong>Title</strong></p>` + 内容，无 className，用 `data-alert` 区分类型
 

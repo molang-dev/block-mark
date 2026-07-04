@@ -383,3 +383,26 @@ describe('GFM typeNames', () => {
     expect(result[0].typeName).toBe('Table')
   })
 })
+
+// ─── block.lines 原文不变 ────────────────────────────────────────────────────
+
+function checkRawGFM(md: string) {
+  const raw = md.split('\n')
+  const blocks = parse(md)
+  for (const b of blocks) {
+    expect(b.lines).toEqual(raw.slice(b.lineStart, b.lineEnd + 1))
+  }
+}
+
+describe('block.lines === raw source lines (gfm)', () => {
+  it('table block', () =>
+    checkRawGFM('| A | B |\n|---|---|\n| 1 | 2 |'))
+  it('footnote def', () =>
+    checkRawGFM('[^id]: content line'))
+  it('math block', () =>
+    checkRawGFM('$$\n    x^2 + y^2\n$$'))
+  it('alert block', () =>
+    checkRawGFM('> [!NOTE]\n> content'))
+  it('mixed GFM document', () =>
+    checkRawGFM('# H\n\n| A |\n|---|\n| v |\n\n> [!TIP]\n> tip\n\n$$\nf(x)\n$$'))
+})

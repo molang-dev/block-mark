@@ -6,6 +6,11 @@ function b(type: number, lines: string[], extra?: Partial<Block>): Block {
   return { type, lines, id: 0, order: 0, lineStart: 0, lineEnd: 0, dirty: DirtyFlag.Changed, ...extra }
 }
 
+// Strip leading spaces/tabs for rule matching when indented code blocks are disabled.
+function norm(line: string, ctx?: BlockContext): string {
+  return ctx?.disableIndentedCode ? line.replace(/^[ \t]+/, '') : line
+}
+
 // Patterns that interrupt a paragraph (CommonMark §4.1)
 const INTERRUPT_RE = [
   /^( {0,3})(#{1,6})(\s|$)/,                      // ATX heading
@@ -28,10 +33,10 @@ const SETEXT_RE = /^( {0,3})(=+|-+)\s*$/
 const atxHeading: BlockRule = {
   name: 'atx-heading',
   priority: 20,
-  tryCollect(lines, at) {
+  tryCollect(lines, at, ctx) {
     const raw = lines[at]
     if (raw === undefined) return null
-    const m = raw.match(/^( {0,3})(#{1,6})(\s+|$)/)
+    const m = norm(raw, ctx).match(/^( {0,3})(#{1,6})(\s+|$)/)
     if (!m) return null
     const depth = m[2].length
     return b(BlockType.Heading, [raw], { depth })
@@ -93,9 +98,9 @@ const indentedCode: BlockRule = {
 const fencedCode: BlockRule = {
   name: 'fenced-code',
   priority: 35,
-  tryCollect(lines, at) {
+  tryCollect(lines, at, ctx) {
     const openLine = lines[at]
-    const om = openLine?.match(/^( {0,3})(`{3,}|~{3,})(.*)$/)
+    const om = norm(openLine ?? '', ctx).match(/^( {0,3})(`{3,}|~{3,})(.*)$/)
     if (!om) return null
     const fenceChar = om[2][0]
     const fenceLen  = om[2].length
@@ -105,7 +110,7 @@ const fencedCode: BlockRule = {
     while (i < lines.length) {
       const l = lines[i]
       collected.push(l); i++
-      const cm = l.match(/^( {0,3})(`{3,}|~{3,})\s*$/)
+      const cm = norm(l, ctx).match(/^( {0,3})(`{3,}|~{3,})\s*$/)
       if (cm && cm[2][0] === fenceChar && cm[2].length >= fenceLen) break
     }
     return b(BlockType.Code, collected, { meta: info || undefined })
@@ -119,12 +124,13 @@ const HTML6_TAGS = /^(address|article|aside|base|basefont|blockquote|body|captio
 const htmlBlock: BlockRule = {
   name: 'html-block',
   priority: 40,
-  tryCollect(lines, at) {
+  tryCollect(lines, at, ctx) {
     const line = lines[at] ?? ''
+    const nl = norm(line, ctx)
     let i = at
     const collected: string[] = []
 
-    if (/^( {0,3})<(pre|script|style|textarea)(\s|>|$)/i.test(line)) {
+    if (/^( {0,3})<(pre|script|style|textarea)(\s|>|$)/i.test(nl)) {
       while (i < lines.length) {
         collected.push(lines[i])
         if (/<\/(pre|script|style|textarea)>/i.test(lines[i])) { i++; break }
@@ -132,35 +138,35 @@ const htmlBlock: BlockRule = {
       }
       return b(BlockType.Html, collected)
     }
-    if (/^( {0,3})<!--/.test(line)) {
+    if (/^( {0,3})<!--/.test(nl)) {
       while (i < lines.length) {
         collected.push(lines[i]); i++
         if (/-->/.test(lines[i - 1])) break
       }
       return b(BlockType.Html, collected)
     }
-    if (/^( {0,3})<\?/.test(line)) {
+    if (/^( {0,3})<\?/.test(nl)) {
       while (i < lines.length) {
         collected.push(lines[i]); i++
         if (/\?>/.test(lines[i - 1])) break
       }
       return b(BlockType.Html, collected)
     }
-    if (/^( {0,3})<![A-Z]/.test(line)) {
+    if (/^( {0,3})<![A-Z]/.test(nl)) {
       while (i < lines.length) {
         collected.push(lines[i]); i++
         if (/>/.test(lines[i - 1])) break
       }
       return b(BlockType.Html, collected)
     }
-    if (/^( {0,3})<!\[CDATA\[/.test(line)) {
+    if (/^( {0,3})<!\[CDATA\[/.test(nl)) {
       while (i < lines.length) {
         collected.push(lines[i]); i++
         if (/\]\]>/.test(lines[i - 1])) break
       }
       return b(BlockType.Html, collected)
     }
-    const t6 = line.match(/^( {0,3})<\/?([a-zA-Z][a-zA-Z0-9-]*)/)
+    const t6 = nl.match(/^( {0,3})<\/?([a-zA-Z][a-zA-Z0-9-]*)/)
     if (t6 && HTML6_TAGS.test(t6[2])) {
       const tag = t6[2].toLowerCase()
       const VOID = /^(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i
@@ -191,7 +197,7 @@ const linkDef: BlockRule = {
   tryCollect(lines, at, ctx) {
     const line = lines[at] ?? ''
     // [label]: url
-    const m = line.match(/^( {0,3})\[([^\]]+)\]:\s*(\S+)(.*)?$/)
+    const m = norm(line, ctx).match(/^( {0,3})\[([^\]]+)\]:\s*(\S+)(.*)?$/)
     if (!m) return null
     const label = m[2].toLowerCase()
     let url = m[3]
@@ -203,7 +209,7 @@ const linkDef: BlockRule = {
 
     // Title on next line if nothing on current line after url
     if (!rest && i < lines.length) {
-      const tm = lines[i]?.match(/^( {0,3})("([^"]*)"|'([^']*)'|\(([^)]*)\))\s*$/)
+      const tm = norm(lines[i] ?? '', ctx).match(/^( {0,3})("([^"]*)"|'([^']*)'|\(([^)]*)\))\s*$/)
       if (tm) { defLines.push(lines[i]); i++ }
     }
 
@@ -222,15 +228,16 @@ const linkDef: BlockRule = {
 const blockQuote: BlockRule = {
   name: 'blockquote',
   priority: 60,
-  tryCollect(lines, at) {
-    if (!/^( {0,3})>/.test(lines[at] ?? '')) return null
+  tryCollect(lines, at, ctx) {
+    if (!/^( {0,3})>/.test(norm(lines[at] ?? '', ctx))) return null
     const collected: string[] = []
     let i = at
     while (i < lines.length) {
       const l = lines[i]
-      if (/^( {0,3})>/.test(l)) {
+      const nl = norm(l, ctx)
+      if (/^( {0,3})>/.test(nl)) {
         collected.push(l); i++
-      } else if (collected.length > 0 && l !== '' && !interruptsParagraph(l)) {
+      } else if (collected.length > 0 && l !== '' && !interruptsParagraph(nl)) {
         collected.push(l); i++ // lazy continuation
       } else {
         break
@@ -253,23 +260,24 @@ const LIST_INTERRUPT_RE = [
 const list: BlockRule = {
   name: 'list',
   priority: 70,
-  tryCollect(lines, at) {
-    if (!LIST_MARKER_RE.test(lines[at] ?? '')) return null
+  tryCollect(lines, at, ctx) {
+    if (!LIST_MARKER_RE.test(norm(lines[at] ?? '', ctx))) return null
     const listLines: string[] = []
     let blankBuf: string[] = []
     let blankCount = 0
     let i = at
     while (i < lines.length) {
       const l = lines[i]
+      const nl = norm(l, ctx)
       if (l === '') {
         blankCount++
         if (blankCount >= 2) break
         blankBuf.push(l); i++; continue
       }
       blankCount = 0
-      if (LIST_INTERRUPT_RE.some(r => r.test(l))) break
-      const leading = (l.match(/^( *)/) ?? [])[1]?.length ?? 0
-      if (leading === 0 && !LIST_MARKER_RE.test(l)) break
+      if (LIST_INTERRUPT_RE.some(r => r.test(nl))) break
+      const leading = (nl.match(/^( *)/) ?? [])[1]?.length ?? 0
+      if (leading === 0 && !LIST_MARKER_RE.test(nl)) break
       listLines.push(...blankBuf); blankBuf = []
       listLines.push(l); i++
     }
@@ -283,8 +291,8 @@ const list: BlockRule = {
 const toc: BlockRule = {
   name: 'toc',
   priority: 85,
-  tryCollect(lines, at) {
-    if (!/^ {0,3}\[toc\]\s*$/i.test(lines[at] ?? '')) return null
+  tryCollect(lines, at, ctx) {
+    if (!/^ {0,3}\[toc\]\s*$/i.test(norm(lines[at] ?? '', ctx))) return null
     return b(BlockType.Toc, [lines[at]])
   },
 }
@@ -294,8 +302,8 @@ const toc: BlockRule = {
 const hr: BlockRule = {
   name: 'hr',
   priority: 80,
-  tryCollect(lines, at) {
-    const m = lines[at]?.match(/^( {0,3})([-*_])[ \t]*(\2[ \t]*){2,}$/)
+  tryCollect(lines, at, ctx) {
+    const m = norm(lines[at] ?? '', ctx).match(/^( {0,3})([-*_])[ \t]*(\2[ \t]*){2,}$/)
     if (!m) return null
     return b(BlockType.Hr, [lines[at]])
   },

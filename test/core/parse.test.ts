@@ -438,6 +438,31 @@ describe('Link Reference Definition — edge cases', () => {
   })
 })
 
+// ─── block.lines 原文不变 ────────────────────────────────────────────────────
+
+function checkRaw(md: string) {
+  const raw = md.split('\n')
+  const blocks = parse(md)
+  for (const b of blocks) {
+    expect(b.lines).toEqual(raw.slice(b.lineStart, b.lineEnd + 1))
+  }
+}
+
+describe('block.lines === raw source lines (parse.test)', () => {
+  it('fenced code with deeply indented body', () =>
+    checkRaw('```python\ndef greet(name):\n    return f"Hello, {name}!"\n```'))
+  it('fenced code opened with 3 leading spaces', () =>
+    checkRaw('   ```js\n    var x = 1;\n```'))
+  it('setext heading multi-line', () =>
+    checkRaw('Title Line\n=========='))
+  it('blockquote multi-line', () =>
+    checkRaw('> first\n> second\n> third'))
+  it('ordered list', () =>
+    checkRaw('1. one\n2. two\n3. three'))
+  it('html block type 1', () =>
+    checkRaw('<script>\nalert(1)\n</script>'))
+})
+
 // ─── update() cross-type scenarios ───────────────────────────────────────────
 
 describe('update() — cross-type changes', () => {
