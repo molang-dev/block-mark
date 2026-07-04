@@ -1,6 +1,6 @@
 {
   "name": "blockmark",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Markdown parser — split into heading-delimited blocks",
   "main": "./dist/index.cjs",

@@ -117,6 +117,19 @@ describe('disableIndentedCode: true — ≥4 spaces stripped, syntax recognized'
   it('plain indented text → Paragraph (not code)', () => {
     expect(parse('    just text', true)[0].type).toBe(BlockType.Paragraph)
   })
+
+  it('5-space ATX heading — heading text correct', () => {
+    const b = parse('     ### H3 - title', true)[0]
+    expect(b.type).toBe(BlockType.Heading)
+    expect(b.depth).toBe(3)
+    expect(b.markdown?.[0]?.children?.[0]?.text).toBe('H3 - title')
+  })
+
+  it('4-space list — list items parsed correctly', () => {
+    const b = parse('    - item one\n    - item two', true)[0]
+    expect(b.type).toBe(BlockType.List)
+    expect(b.markdown?.[0]?.children).toHaveLength(2)
+  })
 })
 
 // ─── table header alignment fix ──────────────────────────────────────────────

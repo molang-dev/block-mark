@@ -531,16 +531,23 @@ export class BlockMaker {
     }
   }
 
+  private _normLines(lines: string[]): string[] {
+    return this._opts.disableIndentedCode
+      ? lines.map(l => l.replace(/^[ \t]+/, ''))
+      : lines
+  }
+
   private _registerCoreProcessors(): void {
     this._blockProcessors.set(BlockType.Heading, (block, ctx) => {
       const { content, brs } = peelBlanks(block.lines)
-      let text = content[0] ?? ''
-      if (content.length === 1) {
+      const normed = this._normLines(content)
+      let text = normed[0] ?? ''
+      if (normed.length === 1) {
         // ATX: strip leading # and trailing #
         text = text.replace(/^( {0,3})#{1,6}\s*/, '').replace(/\s+#+\s*$/, '').trim()
       } else {
         // Setext: join all but last line (underline)
-        text = content.slice(0, -1).join('\n')
+        text = normed.slice(0, -1).join('\n')
       }
       const nd: Node = { type: NodeType.Heading, depth: block.depth ?? 1, children: ctx.parseInline(text) }
       return [nd, ...brs]
@@ -599,7 +606,7 @@ export class BlockMaker {
     this._blockProcessors.set(BlockType.List, (block, ctx) => {
       const { content, brs } = peelBlanks(block.lines)
       const { node } = buildListNode(
-        content, 0,
+        this._normLines(content), 0,
         ctx.parseInline,
         ctx.subdivide,
         (b) => {
