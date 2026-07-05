@@ -605,8 +605,14 @@ export class BlockMaker {
 
     this._blockProcessors.set(BlockType.List, (block, ctx) => {
       const { content, brs } = peelBlanks(block.lines)
+      let lines = content
+      if (this._opts.disableIndentedCode) {
+        const nonBlank = content.filter(l => l !== '')
+        const min = nonBlank.reduce((m, l) => Math.min(m, (l.match(/^[ \t]*/) ?? [''])[0].length), Infinity)
+        if (min > 0 && isFinite(min)) lines = content.map(l => l === '' ? l : l.slice(min))
+      }
       const { node } = buildListNode(
-        this._normLines(content), 0,
+        lines, 0,
         ctx.parseInline,
         ctx.subdivide,
         (b) => {
