@@ -963,3 +963,39 @@ describe('block.lines === raw source lines (update)', () => {
     checkRaw(bm(md), md)
   })
 })
+
+// ─── disableIndentedCode list stability under update ─────────────────────────
+
+describe('disableIndentedCode: true — list stays one block through edit cycle', () => {
+  const md = '1. 第一步\n2. 第二步\n   1. 子步骤 2.1\n   2. 子步骤 2.2\n3. 第三步'
+
+  it('initial parse → one List block', () => {
+    const p = bm(md, { disableIndentedCode: true })
+    expect(p.allBlocks()).toHaveLength(1)
+    expect(p.allBlocks()[0].type).toBe(BlockType.List)
+  })
+
+  it('delete nested item line → still one List block', () => {
+    const p = bm(md, { disableIndentedCode: true })
+    // delete line 3 ("   2. 子步骤 2.2") — select whole line including newline
+    p.update(3, 0, 4, 0, '')
+    expect(p.allBlocks()).toHaveLength(1)
+    expect(p.allBlocks()[0].type).toBe(BlockType.List)
+  })
+
+  it('delete then retype nested item → still one List block', () => {
+    const p = bm(md, { disableIndentedCode: true })
+    p.update(3, 0, 4, 0, '')                          // delete "   2. 子步骤 2.2\n"
+    p.update(3, 0, 3, 0, '   2. 子步骤 2.2\n')        // insert it back before "3. 第三步"
+    expect(p.allBlocks()).toHaveLength(1)
+    expect(p.allBlocks()[0].type).toBe(BlockType.List)
+  })
+
+  it('whitespace-only intermediate line during typing does not split list', () => {
+    const p = bm(md, { disableIndentedCode: true })
+    p.update(3, 0, 4, 0, '')           // delete "   2. 子步骤 2.2\n"
+    p.update(3, 0, 3, 0, '   \n')      // insert whitespace-only line (mid-typing state)
+    expect(p.allBlocks()).toHaveLength(1)
+    expect(p.allBlocks()[0].type).toBe(BlockType.List)
+  })
+})

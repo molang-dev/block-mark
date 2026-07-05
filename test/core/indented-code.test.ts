@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { BlockMaker } from '../../src/core/BlockMaker'
 import { blockMakerGFM } from '../../src/plugins/gfm'
-import { BlockType } from '../../src/core/types'
+import { BlockType, NodeType } from '../../src/core/types'
 import { GFMBlockType } from '../../src/plugins/gfm'
 
 function parse(md: string, disableIndentedCode?: boolean) {
@@ -129,6 +129,71 @@ describe('disableIndentedCode: true — ≥4 spaces stripped, syntax recognized'
     const b = parse('    - item one\n    - item two', true)[0]
     expect(b.type).toBe(BlockType.List)
     expect(b.markdown?.[0]?.children).toHaveLength(2)
+  })
+
+  it('## H2 depth and text correct', () => {
+    const b = parse('    ## 二级标题', true)[0]
+    expect(b.type).toBe(BlockType.Heading)
+    expect(b.depth).toBe(2)
+    expect(b.markdown?.[0]?.children?.[0]?.text).toBe('二级标题')
+  })
+
+  it('nested ordered list — hierarchy preserved', () => {
+    const md = '    1. 第一步\n    2. 第二步\n       1. 子步骤 2.1\n       2. 子步骤 2.2\n    3. 第三步'
+    const b = parse(md, true)[0]
+    expect(b.type).toBe(BlockType.List)
+    const items = b.markdown?.[0]?.children
+    expect(items).toHaveLength(3)
+    const item2Children = items?.[1]?.children
+    const nestedList = item2Children?.find((n: any) => n.type !== undefined && n.children?.length > 0 && n.ordered !== undefined)
+    expect(nestedList).toBeDefined()
+    expect(nestedList?.children).toHaveLength(2)
+  })
+
+  it('nested unordered list — hierarchy preserved', () => {
+    const md = '    - parent\n      - child one\n      - child two'
+    const b = parse(md, true)[0]
+    expect(b.type).toBe(BlockType.List)
+    const parentItem = b.markdown?.[0]?.children?.[0]
+    const nested = parentItem?.children?.find((n: any) => n.type === NodeType.List)
+    expect(nested).toBeDefined()
+    expect(nested?.children).toHaveLength(2)
+  })
+
+  it('setext heading — type and text correct', () => {
+    const b = parse('    My Title\n    ========', true)[0]
+    expect(b.type).toBe(BlockType.Heading)
+    expect(b.depth).toBe(1)
+    expect(b.markdown?.[0]?.children?.[0]?.text).toBe('My Title')
+  })
+
+  it('html block — recognized and content preserved', () => {
+    const md = '    <div>\n    <p>hello</p>\n    </div>'
+    const b = parse(md, true)[0]
+    expect(b.type).toBe(BlockType.Html)
+    expect(b.lines[1]).toBe('    <p>hello</p>')
+  })
+
+  it('link def — resolved correctly', () => {
+    const blocks = parse('    [foo]: https://example.com\n\n    [foo]', true)
+    expect(blocks[0].type).toBe(BlockType.Def)
+    const linkNode = blocks[1].markdown?.[0]?.children?.find((n: any) => n.url)
+    expect(linkNode?.url).toBe('https://example.com')
+  })
+
+  it('blockquote — content inline parsed correctly', () => {
+    const b = parse('    > **bold** text', true)[0]
+    expect(b.type).toBe(BlockType.Blockquote)
+    const bqNode = b.markdown?.[0]
+    const strongNode = bqNode?.children?.find((n: any) =>
+      n.children?.some?.((c: any) => c.children?.some?.((t: any) => t.text === 'bold'))
+    )
+    expect(strongNode).toBeDefined()
+  })
+
+  it('4-space [toc] → Toc (disableIndentedCode strips to [toc])', () => {
+    const b = parse('    [toc]\n\n# H1', true)[0]
+    expect(b.type).toBe(BlockType.Toc)
   })
 })
 
