@@ -208,16 +208,12 @@ export class BlockMaker {
     this._reset()
     const lines = content.split('\n')
     this._rawLines = lines
-    const sections = this._splitSections(lines)
     let blockOrder = 0
-    for (const sec of sections) {
-      const blocks = this._subdivide(sec.lines, sec.lineStart)
-      for (const bl of blocks) {
-        bl.order = blockOrder++
-        bl.id = this._nextId++
-        this._processBlock(bl)
-        this._blocks.push(bl)
-      }
+    for (const bl of this._subdivide(lines, 0)) {
+      bl.order = blockOrder++
+      bl.id = this._nextId++
+      this._processBlock(bl)
+      this._blocks.push(bl)
     }
     this._mergeTrailingBlanks()
     this._assignTypeNames()
@@ -249,17 +245,14 @@ export class BlockMaker {
     let batchCount = 0
 
     const flush = (isEnd: boolean) => {
-      const sections = this._splitSections(pendingLines)
+      const batchStart = globalLine - pendingLines.length
       const newBlocks: Block[] = []
-      for (const sec of sections) {
-        const blocks = this._subdivide(sec.lines, sec.lineStart)
-        for (const bl of blocks) {
-          bl.order = blockOrder++
-          bl.id = this._nextId++
-          this._processBlock(bl)
-          this._blocks.push(bl)
-          newBlocks.push(bl)
-        }
+      for (const bl of this._subdivide(pendingLines, batchStart)) {
+        bl.order = blockOrder++
+        bl.id = this._nextId++
+        this._processBlock(bl)
+        this._blocks.push(bl)
+        newBlocks.push(bl)
       }
       pendingLines = []
       if (isEnd) {
@@ -437,38 +430,6 @@ export class BlockMaker {
   private _reset(): void {
     this._blocks = []; this._rawLines = []; this._defs = new Map(); this._refs = []; this._batchIdx = 0
     this._nextId = 1
-  }
-
-  private _splitSections(lines: string[]): Array<{ lines: string[]; lineStart: number }> {
-    const sections: Array<{ lines: string[]; lineStart: number }> = []
-    let current: string[] = []
-    let secStart = 0
-    let inFence = false
-    let fenceMark = ''
-    let inFrontMatter = lines.length > 0 && lines[0] === '---'
-
-    const push = (start: number) => {
-      if (current.length) { sections.push({ lines: current, lineStart: start }); current = [] }
-    }
-
-    for (let i = 0; i < lines.length; i++) {
-      const l = lines[i]
-      if (inFrontMatter) {
-        if (i > 0 && (l === '---' || l === '...')) inFrontMatter = false
-      } else if (inFence) {
-        if (new RegExp(`^( {0,3})${fenceMark}{3,}\\s*$`).test(l)) inFence = false
-      } else {
-        const fm = l.match(/^( {0,3})(`{3,}|~{3,})/)
-        if (fm) {
-          inFence = true; fenceMark = fm[2][0] === '`' ? '`' : '~'
-        } else if (i !== 0 && /^( {0,3})(#{1,6})(\s|$)/.test(l)) {
-          push(secStart); secStart = i
-        }
-      }
-      current.push(l)
-    }
-    push(secStart)
-    return sections.length ? sections : [{ lines, lineStart: 0 }]
   }
 
   _subdivide(lines: string[], lineStart: number): Block[] {

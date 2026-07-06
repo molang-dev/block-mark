@@ -5,6 +5,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.4] - 2026-07-06
+
+### Changed
+- 删除 `_splitSections` 全局预切割；`parse()` / `parseFile()` 直接调用 `_subdivide` 逐行解析，各 block rule 自行负责收集范围——修复 HTML block 内含 heading 时被错误拆成多个 block 的问题
+
+### Fixed
+- `parseFile()` 分批 flush 时 block 绝对行号偏移错误（`lineStart` 未加批次起始偏移）
+
+---
+
 ## [1.0.3] - 2026-07-06
 
 ### Added
