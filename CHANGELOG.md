@@ -5,6 +5,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.3] - 2026-07-06
+
+### Added
+- `Block` 接口新增 `skip?: boolean` 字段，默认不赋值；`blockMakerFrontMatter` 插件将 FrontMatter block 的 `skip` 设为 `true`
+
+---
+
 ## [1.0.2] - 2026-07-05
 
 ### Changed

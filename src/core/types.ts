@@ -84,6 +84,7 @@ export interface Block {
   meta?: string
   markdown?: Node[]
   html?: string
+  skip?: boolean
 }
 
 // ─── Parsing contexts ─────────────────────────────────────────────────────────

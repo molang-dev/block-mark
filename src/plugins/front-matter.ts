@@ -54,7 +54,7 @@ function parseYaml(lines: string[]): Record<string, unknown> {
 // ─── Block rule ───────────────────────────────────────────────────────────────
 
 function bl(lines: string[], meta: string): Block {
-  return { type: FrontMatterBlockType.FrontMatter, lines, meta, id: 0, order: 0, lineStart: 0, lineEnd: 0, dirty: DirtyFlag.Changed }
+  return { type: FrontMatterBlockType.FrontMatter, lines, meta, id: 0, order: 0, lineStart: 0, lineEnd: 0, dirty: DirtyFlag.Changed, skip: true }
 }
 
 const frontMatterRule: BlockRule = {
