@@ -62,7 +62,7 @@ describe('ATX Heading — edge cases', () => {
   it('heading with inline strong: children include Strong node', () => {
     const blocks = parse('# **bold** title')
     const children = blocks[0].markdown?.[0]?.children
-    expect(children?.some((n: any) => n.type === NodeType.Strong)).toBe(true)
+    expect(children?.some((n: any) => n.type === NodeType.Bold)).toBe(true)
   })
 
   it('heading interrupts preceding paragraph', () => {

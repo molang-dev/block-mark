@@ -352,7 +352,7 @@ describe('showTypeName', () => {
       .changed((blocks, isEnd) => { if (isEnd) result = blocks })
       .parse('# Hello *world*')
     expect(result[0].typeName).toBe('Heading')
-    const em = result[0].markdown?.[0]?.children?.find((n: any) => n.typeName === 'Em')
+    const em = result[0].markdown?.[0]?.children?.find((n: any) => n.typeName === 'Italic')
     expect(em).toBeDefined()
   })
 

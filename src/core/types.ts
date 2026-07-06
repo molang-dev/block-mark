@@ -1,53 +1,54 @@
 // ─── Dirty flag ───────────────────────────────────────────────────────────────
 
 export enum DirtyFlag {
-  Clean   = 0,
-  Shifted = 1,
-  Changed = 2,
+  Clean   = 0, // content and position unchanged
+  Shifted = 1, // position changed (line numbers shifted), content unchanged
+  Changed = 2, // content changed, needs re-render
 }
 
 // ─── Core block types (module 10, block=1) ───────────────────────────────────
 
 export enum BlockType {
-  Heading    = 101001,
-  Paragraph  = 101002,
-  List       = 101003,
-  Code       = 101004,
-  Blockquote = 101005,
-  Hr         = 101006,
-  Html       = 101007,
-  Def        = 101008,
-  Toc        = 101009,
+  Heading    = 101001, // ATX heading (# … ######) or setext heading
+  Paragraph  = 101002, // plain text paragraph
+  List       = 101003, // ordered or unordered list
+  Code       = 101004, // fenced (``` … ```) or indented code block
+  Blockquote = 101005, // block quote (> …)
+  Hr         = 101006, // thematic break (---, ***, ___)
+  Html       = 101007, // raw HTML block (stands alone on its own lines)
+  Def        = 101008, // link reference definition ([label]: url)
+  Toc        = 101009, // table-of-contents placeholder ([toc])
 }
 
 // ─── Core node types (module 10, node=2) ─────────────────────────────────────
 
 export enum NodeType {
-  Text       = 102001,
-  Em         = 102002,
-  Strong     = 102003,
-  Codespan   = 102004,
-  Link       = 102005,
-  LinkRef    = 102006,
-  Image      = 102007,
-  Br         = 102008,
-  HardBr     = 102009,
-  Escape     = 102010,
-  Tag        = 102011,
-  Heading    = 102012,
-  Paragraph  = 102013,
-  Blockquote = 102014,
-  List       = 102015,
-  ListItem   = 102016,
-  Code       = 102017,
-  Hr         = 102018,
-  Html       = 102019,
-  Def        = 102020,
+  Text       = 102001, // plain text run
+  Italic     = 102002, // emphasis (* or _)
+  Bold       = 102003, // strong emphasis (** or __)
+  Codespan   = 102004, // inline code (` … `)
+  Link       = 102005, // inline or autolink ([text](url) or <url>)
+  LinkRef    = 102006, // reference-style link ([text][label])
+  Image      = 102007, // image (![alt](url))
+  Br         = 102008, // soft line break (newline within a paragraph)
+  HardBr     = 102009, // hard line break (two trailing spaces or backslash + newline)
+  Escape     = 102010, // backslash escape or HTML entity (\*, &amp;)
+  Tag        = 102011, // inline raw HTML tag (<span>, <!-- -->, etc.)
+  Heading    = 102012, // heading node inside a block's markdown tree
+  Paragraph  = 102013, // paragraph node inside a block's markdown tree
+  Blockquote = 102014, // blockquote node inside a block's markdown tree
+  List       = 102015, // list node inside a block's markdown tree
+  ListItem   = 102016, // individual list item
+  Code       = 102017, // code block node inside a block's markdown tree
+  Hr         = 102018, // thematic break node inside a block's markdown tree
+  Html       = 102019, // raw HTML node inside a block's markdown tree
+  Def        = 102020, // link definition node inside a block's markdown tree
+  BoldItalic = 102021, // bold + italic combined (*** or ___)
 }
 
 export enum LinkType {
-  Url   = 1,
-  Email = 2,
+  Url   = 1, // URL autolink or inline link
+  Email = 2, // email autolink (<user@example.com>)
 }
 
 // ─── AST node ─────────────────────────────────────────────────────────────────

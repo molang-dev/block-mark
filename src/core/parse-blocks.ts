@@ -364,8 +364,9 @@ export const coreBlockTypeNames: Record<number, string> = {
 
 export const coreNodeTypeNames: Record<number, string> = {
   [NT.Text]:       'Text',
-  [NT.Em]:         'Em',
-  [NT.Strong]:     'Strong',
+  [NT.Italic]:     'Italic',
+  [NT.Bold]:       'Bold',
+  [NT.BoldItalic]: 'BoldItalic',
   [NT.Codespan]:   'Codespan',
   [NT.Link]:       'Link',
   [NT.LinkRef]:    'LinkRef',

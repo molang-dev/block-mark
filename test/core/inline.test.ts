@@ -97,34 +97,34 @@ describe('Code Span', () => {
 describe('Emphasis', () => {
   it('*em*', () => {
     const nodes = inlineNodes('*hello*')
-    expect(nodes[0].type).toBe(NodeType.Em)
+    expect(nodes[0].type).toBe(NodeType.Italic)
     expect(nodes[0].children?.[0]?.text).toBe('hello')
   })
 
   it('**strong**', () => {
     const nodes = inlineNodes('**hello**')
-    expect(nodes[0].type).toBe(NodeType.Strong)
+    expect(nodes[0].type).toBe(NodeType.Bold)
   })
 
   it('_em_ works like *em*', () => {
     const nodes = inlineNodes('_hello_')
-    expect(nodes[0].type).toBe(NodeType.Em)
+    expect(nodes[0].type).toBe(NodeType.Italic)
   })
 
   it('__strong__', () => {
     const nodes = inlineNodes('__hello__')
-    expect(nodes[0].type).toBe(NodeType.Strong)
+    expect(nodes[0].type).toBe(NodeType.Bold)
   })
 
   it('***em+strong***', () => {
     const nodes = inlineNodes('***hello***')
-    expect(nodes[0].type).toBe(NodeType.Strong)
-    expect(nodes[0].children?.[0]?.type).toBe(NodeType.Em)
+    expect(nodes[0].type).toBe(NodeType.BoldItalic)
+    expect(nodes[0].children?.[0]?.type).toBe(NodeType.Text)
   })
 
   it('nested em in strong', () => {
     const nodes = inlineNodes('**hello *world***')
-    expect(nodes[0].type).toBe(NodeType.Strong)
+    expect(nodes[0].type).toBe(NodeType.Bold)
   })
 
   it('unclosed * is literal', () => {

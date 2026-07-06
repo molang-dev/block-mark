@@ -123,7 +123,7 @@ describe('GFM Table — node structure', () => {
   it('table cell with inline em content', () => {
     const blocks = parse('| *bold* |\n|---|\n| v |')
     const headerCell = blocks[0].markdown?.[0]?.children?.[0]?.children?.[0]
-    const em = headerCell?.children?.find((n: any) => n.type === NodeType.Em)
+    const em = headerCell?.children?.find((n: any) => n.type === NodeType.Italic)
     expect(em).toBeDefined()
   })
 })
@@ -335,7 +335,7 @@ describe('GFM Strikethrough', () => {
     const nodes = inlineNodes('~~**bold del**~~')
     expect(nodes[0].type).toBe(GFMNodeType.Del)
     const inner = nodes[0].children?.[0]
-    expect(inner?.type).toBe(NodeType.Strong)
+    expect(inner?.type).toBe(NodeType.Bold)
   })
 })
 

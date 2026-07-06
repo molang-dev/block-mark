@@ -307,14 +307,14 @@ export class InlineScanner {
     // Try strong (2) then em (1)
     if (cnt >= 3) {
       const inner = this._delimited(c.repeat(3))
-      if (inner) return n(NodeType.Strong, '', [n(NodeType.Em, '', inner)])
+      if (inner) return n(NodeType.BoldItalic, '', inner)
     }
     if (cnt >= 2) {
       const inner = this._delimited(c.repeat(2))
-      if (inner) return n(NodeType.Strong, '', inner)
+      if (inner) return n(NodeType.Bold, '', inner)
     }
     const inner = this._delimited(c)
-    if (inner) return n(NodeType.Em, '', inner)
+    if (inner) return n(NodeType.Italic, '', inner)
 
     this.pos++
     return n(NodeType.Text, c)

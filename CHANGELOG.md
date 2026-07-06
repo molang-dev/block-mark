@@ -5,6 +5,18 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.5] - 2026-07-06
+
+### Added
+- `NodeType.BoldItalic`（102021）：`***text***` 直接解析为扁平的 `BoldItalic` 节点，不再嵌套 `Bold > Italic`
+
+### Changed
+- `NodeType.Em` → `Italic`，`NodeType.Strong` → `Bold`
+- 删除 `_splitSections` 全局预切割 → HTML block 内含 heading 不再被错误拆分（已移至 1.0.4）
+- `DirtyFlag` / `BlockType` / `NodeType` / `LinkType` 各枚举值补充英文行内注释
+
+---
+
 ## [1.0.4] - 2026-07-06
 
 ### Changed
