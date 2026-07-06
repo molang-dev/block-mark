@@ -5,6 +5,18 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.2] - 2026-07-05
+
+### Changed
+- `update()` 重解析范围从"直接受影响的 block"扩展为前后各再纳入一个相邻 block，使跨 block 边界的内容可以合并回单个 block
+
+### Fixed
+- `update()` nextBlock 内容未变时正确复用其 id 并设置 Shifted/Clean dirty
+- `update()` prevBlock 经 `_mergeTrailingBlanks` 后 lines 未变时降级为 Clean，避免无谓重渲染
+- list 规则中 `l === ''` 改为 `l.trim() === ''`，whitespace-only 行（如 `   `）不再截断列表
+
+---
+
 ## [1.0.1] - 2026-07-04
 
 ### Changed
