@@ -316,7 +316,7 @@ export class BlockMaker {
     // Splice raw lines
     rawLines.splice(row1, row2 - row1 + 1, ...middle)
 
-    // Find affected blocks (expand to whole contiguous range)
+    // Find directly affected blocks
     const firstAffected = this._blocks.findIndex(b => b.lineEnd >= row1)
     const lastAffected  = this._blocks.findIndex(b => b.lineStart > row2)
     let lo = firstAffected < 0 ? this._blocks.length - 1 : firstAffected
@@ -327,6 +327,15 @@ export class BlockMaker {
       else        [lo, hi] = [hi, lo]
     }
 
+    // Expand to include one adjacent block on each side
+    const innerLo = lo, innerHi = hi
+    if (lo > 0)                        lo--
+    if (hi < this._blocks.length - 1)  hi++
+
+    const prevBlock     = lo < innerLo ? this._blocks[lo] : null
+    const nextBlock     = hi > innerHi ? this._blocks[hi] : null
+    const prevBlockSnap = prevBlock ? prevBlock.lines.slice() : null
+
     // Snap to surrounding section boundaries
     const secStart = Math.min(this._blocks[lo].lineStart, row1)
     const secEnd   = Math.max(this._blocks[hi].lineEnd, row2) + lineDelta
@@ -335,24 +344,39 @@ export class BlockMaker {
     const affLines = rawLines.slice(secStart, secEnd + 1)
     const newBlocks = this._subdivide(affLines, secStart)
 
-    // Reuse old ids by position; only truly removed blocks go into deletedIds
-    const oldBlocks = this._blocks.slice(lo, hi + 1)
-    const deletedIds = oldBlocks.slice(newBlocks.length).map(b => b.id)
+    const linesEq = (a: string[], b: string[]) =>
+      a.length === b.length && a.every((l, i) => l === b[i])
 
-    // Assign order and id: reuse old id when a matching position exists
+    // If the last new block matches nextBlock by content, preserve its id
+    let nbEnd = newBlocks.length
+    if (nextBlock && nbEnd > 0 && linesEq(newBlocks[nbEnd - 1].lines, nextBlock.lines)) nbEnd--
+
+    // Positional id pool: fullOldBlocks minus the nextBlock slot when matched
+    const fullOldBlocks = this._blocks.slice(lo, hi + 1)
+    const posPool = nbEnd < newBlocks.length ? fullOldBlocks.slice(0, -1) : fullOldBlocks
+
     let blockOrder = lo
     for (let i = 0; i < newBlocks.length; i++) {
       newBlocks[i].order = blockOrder++
-      newBlocks[i].id = i < oldBlocks.length ? oldBlocks[i].id : this._nextId++
+      if (i === nbEnd && nextBlock) {
+        newBlocks[i].id = nextBlock.id
+      } else if (i < posPool.length) {
+        newBlocks[i].id = posPool[i].id
+      } else {
+        newBlocks[i].id = this._nextId++
+      }
       this._processBlock(newBlocks[i])
-      // If content is identical to old block, downgrade Changed to Shifted/Clean
-      if (i < oldBlocks.length) {
-        const nb = newBlocks[i], ob = oldBlocks[i]
-        if (nb.lines.length === ob.lines.length && nb.lines.every((l, j) => l === ob.lines[j])) {
-          nb.dirty = lineDelta !== 0 ? DirtyFlag.Shifted : DirtyFlag.Clean
-        }
+      // Override dirty after _processBlock (which always resets to Changed)
+      if (i === nbEnd && nextBlock) {
+        newBlocks[i].dirty = newBlocks[i].lineStart !== nextBlock.lineStart
+          ? DirtyFlag.Shifted : DirtyFlag.Clean
+      } else if (i < posPool.length && linesEq(newBlocks[i].lines, posPool[i].lines)) {
+        newBlocks[i].dirty = lineDelta !== 0 ? DirtyFlag.Shifted : DirtyFlag.Clean
       }
     }
+
+    const assignedIds = new Set(newBlocks.map(b => b.id))
+    const deletedIds  = fullOldBlocks.filter(b => !assignedIds.has(b.id)).map(b => b.id)
 
     // Splice into _blocks
     this._blocks.splice(lo, hi - lo + 1, ...newBlocks)
@@ -370,6 +394,11 @@ export class BlockMaker {
     this._rawLines = rawLines  // update early so _mergeTrailingBlanks can read new content
     const dirtySnapshot = this._blocks.map(b => b.dirty)
     this._mergeTrailingBlanks()
+    // If the adjacent block before the edit range ended up with unchanged lines,
+    // it didn't actually change — set Clean regardless of lineDelta.
+    if (prevBlockSnap && this._blocks[lo]) {
+      if (linesEq(this._blocks[lo].lines, prevBlockSnap)) this._blocks[lo].dirty = DirtyFlag.Clean
+    }
     // Re-process blocks whose lines were extended by _mergeTrailingBlanks
     for (let i = 0; i < this._blocks.length; i++) {
       if (this._blocks[i].dirty === DirtyFlag.Changed && dirtySnapshot[i] < DirtyFlag.Changed) {
