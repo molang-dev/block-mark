@@ -269,7 +269,7 @@ const list: BlockRule = {
     while (i < lines.length) {
       const l = lines[i]
       const nl = norm(l, ctx)
-      if (l === '') {
+      if (l.trim() === '') {
         blankCount++
         if (blankCount >= 2) break
         blankBuf.push(l); i++; continue
