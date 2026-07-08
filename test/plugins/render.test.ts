@@ -22,10 +22,10 @@ function renderGfm(md: string): string {
 // ─── Headings ────────────────────────────────────────────────────────────────
 
 describe('render heading', () => {
-  it('h1', () => expect(render('# Hello')).toContain('<h1>'))
-  it('h2', () => expect(render('## Sub')).toContain('<h2>'))
-  it('h6', () => expect(render('###### Deep')).toContain('<h6>'))
-  it('setext h1', () => expect(render('Title\n=====')).toContain('<h1>'))
+  it('h1', () => expect(render('# Hello')).toMatch(/<h1\b/))
+  it('h2', () => expect(render('## Sub')).toMatch(/<h2\b/))
+  it('h6', () => expect(render('###### Deep')).toMatch(/<h6\b/))
+  it('setext h1', () => expect(render('Title\n=====')).toMatch(/<h1\b/))
   it('content inside', () => expect(render('# Hello *world*')).toContain('<em>world</em>'))
 })
 

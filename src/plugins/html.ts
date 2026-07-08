@@ -54,7 +54,38 @@ export const blockMakerHtml: BlockMakerPlugin = {
   name: 'html',
 
   htmlBlock: {
-    [BlockType.Heading]:    (block, ctx) => ctx.renderNodes(block.markdown ?? []),
+    [BlockType.Heading]: (block, ctx) => {
+      const html = ctx.renderNodes(block.markdown ?? [])
+      return html.replace(/^(<h\d)>/, `$1 id="bmd-h-${block.id}">`)
+    },
+    [BlockType.Toc]: (block, ctx) => {
+      const nodes = block.markdown ?? []
+      if (nodes.length === 0) return ''
+      const parts: string[] = []
+      const stack: number[] = []
+      for (const node of nodes) {
+        const d = node.depth ?? 1
+        const link = `<a href="${ctx.escape(node.url ?? '')}">${ctx.renderNodes(node.children ?? [])}</a>`
+        if (stack.length === 0) {
+          parts.push('<ul>', '<li>', link); stack.push(d)
+        } else {
+          const top = stack[stack.length - 1]
+          if (d > top) {
+            parts.push('<ul>', '<li>', link); stack.push(d)
+          } else if (d === top) {
+            parts.push('</li>', '<li>', link)
+          } else {
+            while (stack.length > 0 && stack[stack.length - 1] > d) {
+              parts.push('</li>', '</ul>'); stack.pop()
+            }
+            if (stack.length > 0 && stack[stack.length - 1] === d) parts.push('</li>', '<li>', link)
+            else { parts.push('<li>', link); stack.push(d) }
+          }
+        }
+      }
+      while (stack.length > 0) { parts.push('</li>', '</ul>'); stack.pop() }
+      return `<nav>${parts.join('')}</nav>`
+    },
     [BlockType.Paragraph]:  (block, ctx) => ctx.renderNodes(block.markdown ?? []),
     [BlockType.Code]:       (block, ctx) => ctx.renderNodes(block.markdown ?? []),
     [BlockType.Blockquote]: (block, ctx) => ctx.renderNodes(block.markdown ?? []),

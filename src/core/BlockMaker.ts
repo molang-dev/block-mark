@@ -71,7 +71,6 @@ function buildListNode(
     if (itemBlank) prevBlank = true
     while (contentLines.length && contentLines[contentLines.length - 1] === '') contentLines.pop()
 
-    // Parse item content
     const itemChildren = buildItemContent(contentLines, parseInlineFn, subdivFn, processBlockFn)
     const itemNode: Node = { type: NodeType.ListItem, children: itemChildren }
     items.push(itemNode)
@@ -122,6 +121,12 @@ function peelBlanks(lines: string[]): { content: string[]; brs: Node[] } {
     brs.unshift({ type: NodeType.Br })
   }
   return { content, brs }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function linesEq(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((l, i) => l === b[i])
 }
 
 // ─── BlockMaker ──────────────────────────────────────────────────────────────
@@ -209,15 +214,41 @@ export class BlockMaker {
     const lines = content.split('\n')
     this._rawLines = lines
     let blockOrder = 0
+    const pendingEntries: Node[] = []
+    const ctx = this._makeHtmlCtx()
+
     for (const bl of this._subdivide(lines, 0)) {
       bl.order = blockOrder++
       bl.id = this._nextId++
       this._processBlock(bl)
       this._blocks.push(bl)
+      if (bl.type === BlockType.Toc) {
+        bl.markdown = pendingEntries
+      } else {
+        const fn = this._htmlBlock.get(bl.type)
+        if (fn) bl.html = fn(bl, ctx)
+        if (bl.type === BlockType.Heading) {
+          pendingEntries.push(this._makeTocEntry(bl))
+        }
+      }
     }
+
+    // Re-process and re-render blocks whose lines were extended by _mergeTrailingBlanks
+    const lenSnap = this._blocks.map(b => b.lines.length)
     this._mergeTrailingBlanks()
+    for (let i = 0; i < this._blocks.length; i++) {
+      const bl = this._blocks[i]
+      if (bl.lines.length !== lenSnap[i]) {
+        this._processBlock(bl)
+        if (bl.type !== BlockType.Toc) {
+          const fn = this._htmlBlock.get(bl.type)
+          if (fn) bl.html = fn(bl, ctx)
+        }
+      }
+    }
+
     this._assignTypeNames()
-    this._runHtmlPass()
+    this._renderTocHtml(ctx)
     this._notify(this._blocks, deletedIds, true)
     return this
   }
@@ -226,8 +257,6 @@ export class BlockMaker {
     if (typeof process === 'undefined' || !process.versions?.node) {
       throw new Error('BlockMaker.parseFile() is only available in Node.js. Use parse(content) in browser environments.')
     }
-    // Lazy-load node:fs — avoids Vite externalising the module at build time.
-    // String split prevents static analysis by bundlers.
     const { openSync, readSync, closeSync } = require('node' + ':fs') as {
       openSync:  typeof _OpenSync
       readSync:  typeof _ReadSync
@@ -243,6 +272,8 @@ export class BlockMaker {
     let globalLine = 0
     let blockOrder = 0
     let batchCount = 0
+    const pendingEntries: Node[] = []
+    const ctx = this._makeHtmlCtx()
 
     const flush = (isEnd: boolean) => {
       const batchStart = globalLine - pendingLines.length
@@ -253,17 +284,41 @@ export class BlockMaker {
         this._processBlock(bl)
         this._blocks.push(bl)
         newBlocks.push(bl)
+        if (bl.type === BlockType.Toc) {
+          bl.markdown = pendingEntries
+        } else {
+          const fn = this._htmlBlock.get(bl.type)
+          if (fn) bl.html = fn(bl, ctx)
+          if (bl.type === BlockType.Heading) {
+            pendingEntries.push(this._makeTocEntry(bl))
+            // Any toc block processed in a previous batch needs re-render
+            for (const toc of this._blocks) {
+              if (toc.type === BlockType.Toc) toc.dirty = DirtyFlag.Changed
+            }
+          }
+        }
       }
       pendingLines = []
       if (isEnd) {
+        const lenSnap = this._blocks.map(b => b.lines.length)
         this._mergeTrailingBlanks()
+        for (let i = 0; i < this._blocks.length; i++) {
+          const bl = this._blocks[i]
+          if (bl.lines.length !== lenSnap[i]) {
+            this._processBlock(bl)
+            if (bl.type !== BlockType.Toc) {
+              const fn = this._htmlBlock.get(bl.type)
+              if (fn) bl.html = fn(bl, ctx)
+            }
+          }
+        }
         this._assignTypeNames()
-        this._runHtmlPass()
+        this._renderTocHtml(ctx)
         this._notify(this._blocks, pendingDeletedIds, true)
         pendingDeletedIds = []
       } else {
         this._assignTypeNames()
-        this._runHtmlPass()
+        this._renderTocHtml(ctx)
         const size = this._batchSizes[Math.min(this._batchIdx, this._batchSizes.length - 1)]
         batchCount += newBlocks.length
         if (batchCount >= size) {
@@ -292,12 +347,10 @@ export class BlockMaker {
   update(row1: number, col1: number, row2: number, col2: number, content: string): void {
     if (!this._blocks.length) { this.parse(content); return }
 
-    // Clear dirty flags left over from the previous update before computing new ones
     for (const b of this._blocks) b.dirty = DirtyFlag.Clean
 
     const rawLines = [...this._rawLines]
 
-    // Clamp coordinates
     row1 = Math.max(0, Math.min(row1, rawLines.length - 1))
     row2 = Math.max(row1, Math.min(row2, rawLines.length - 1))
 
@@ -306,21 +359,17 @@ export class BlockMaker {
     const middle   = (prefix + content + suffix).split('\n')
     const lineDelta = middle.length - (row2 - row1 + 1)
 
-    // Splice raw lines
     rawLines.splice(row1, row2 - row1 + 1, ...middle)
 
-    // Find directly affected blocks
     const firstAffected = this._blocks.findIndex(b => b.lineEnd >= row1)
     const lastAffected  = this._blocks.findIndex(b => b.lineStart > row2)
     let lo = firstAffected < 0 ? this._blocks.length - 1 : firstAffected
     let hi = lastAffected  < 0 ? this._blocks.length - 1 : lastAffected - 1
-    // Edit in uncovered gap: expand to surrounding blocks
     if (lo > hi) {
       if (hi < 0) hi = lo
       else        [lo, hi] = [hi, lo]
     }
 
-    // Expand to include one adjacent block on each side
     const innerLo = lo, innerHi = hi
     if (lo > 0)                        lo--
     if (hi < this._blocks.length - 1)  hi++
@@ -329,24 +378,19 @@ export class BlockMaker {
     const nextBlock     = hi > innerHi ? this._blocks[hi] : null
     const prevBlockSnap = prevBlock ? prevBlock.lines.slice() : null
 
-    // Snap to surrounding section boundaries
     const secStart = Math.min(this._blocks[lo].lineStart, row1)
     const secEnd   = Math.max(this._blocks[hi].lineEnd, row2) + lineDelta
 
-    // Re-subdivide affected lines
     const affLines = rawLines.slice(secStart, secEnd + 1)
     const newBlocks = this._subdivide(affLines, secStart)
 
-    const linesEq = (a: string[], b: string[]) =>
-      a.length === b.length && a.every((l, i) => l === b[i])
-
-    // If the last new block matches nextBlock by content, preserve its id
     let nbEnd = newBlocks.length
     if (nextBlock && nbEnd > 0 && linesEq(newBlocks[nbEnd - 1].lines, nextBlock.lines)) nbEnd--
 
-    // Positional id pool: fullOldBlocks minus the nextBlock slot when matched
     const fullOldBlocks = this._blocks.slice(lo, hi + 1)
     const posPool = nbEnd < newBlocks.length ? fullOldBlocks.slice(0, -1) : fullOldBlocks
+
+    const ctx = this._makeHtmlCtx()
 
     let blockOrder = lo
     for (let i = 0; i < newBlocks.length; i++) {
@@ -366,15 +410,18 @@ export class BlockMaker {
       } else if (i < posPool.length && linesEq(newBlocks[i].lines, posPool[i].lines)) {
         newBlocks[i].dirty = lineDelta !== 0 ? DirtyFlag.Shifted : DirtyFlag.Clean
       }
+      // Generate html immediately for non-Toc changed blocks
+      if (newBlocks[i].type !== BlockType.Toc && newBlocks[i].dirty === DirtyFlag.Changed) {
+        const fn = this._htmlBlock.get(newBlocks[i].type)
+        if (fn) newBlocks[i].html = fn(newBlocks[i], ctx)
+      }
     }
 
     const assignedIds = new Set(newBlocks.map(b => b.id))
     const deletedIds  = fullOldBlocks.filter(b => !assignedIds.has(b.id)).map(b => b.id)
 
-    // Splice into _blocks
     this._blocks.splice(lo, hi - lo + 1, ...newBlocks)
 
-    // Fix subsequent blocks: update order, keep id; shift line numbers when needed
     for (let i = lo + newBlocks.length; i < this._blocks.length; i++) {
       const bl = this._blocks[i]
       bl.order = i
@@ -384,22 +431,26 @@ export class BlockMaker {
       }
     }
 
-    this._rawLines = rawLines  // update early so _mergeTrailingBlanks can read new content
+    this._rawLines = rawLines
     const dirtySnapshot = this._blocks.map(b => b.dirty)
     this._mergeTrailingBlanks()
-    // If the adjacent block before the edit range ended up with unchanged lines,
-    // it didn't actually change — set Clean regardless of lineDelta.
     if (prevBlockSnap && this._blocks[lo]) {
       if (linesEq(this._blocks[lo].lines, prevBlockSnap)) this._blocks[lo].dirty = DirtyFlag.Clean
     }
-    // Re-process blocks whose lines were extended by _mergeTrailingBlanks
+    // Re-process and re-render blocks extended by _mergeTrailingBlanks
     for (let i = 0; i < this._blocks.length; i++) {
       if (this._blocks[i].dirty === DirtyFlag.Changed && dirtySnapshot[i] < DirtyFlag.Changed) {
         this._processBlock(this._blocks[i])
+        if (this._blocks[i].type !== BlockType.Toc) {
+          const fn = this._htmlBlock.get(this._blocks[i].type)
+          if (fn) this._blocks[i].html = fn(this._blocks[i], ctx)
+        }
       }
     }
+
     this._assignTypeNames()
-    this._runHtmlPass()
+    this._updateToc(fullOldBlocks, newBlocks, assignedIds)
+    this._renderTocHtml(ctx)
 
     const dirty = this._blocks.filter(b => b.dirty > 0)
     if (dirty.length === 0) {
@@ -449,7 +500,6 @@ export class BlockMaker {
           block.lineEnd   = block.lineStart + block.lines.length - 1
           blocks.push(block)
           i += block.lines.length
-          // Absorb trailing blank lines into this block
           while (i < lines.length && lines[i] === '') {
             block.lines.push(lines[i]); block.lineEnd++; i++
           }
@@ -533,10 +583,8 @@ export class BlockMaker {
       const normed = this._normLines(content)
       let text = normed[0] ?? ''
       if (normed.length === 1) {
-        // ATX: strip leading # and trailing #
         text = text.replace(/^( {0,3})#{1,6}\s*/, '').replace(/\s+#+\s*$/, '').trim()
       } else {
-        // Setext: join all but last line (underline)
         text = normed.slice(0, -1).join('\n')
       }
       const nd: Node = { type: NodeType.Heading, depth: block.depth ?? 1, children: ctx.parseInline(text) }
@@ -557,7 +605,6 @@ export class BlockMaker {
         const closeIdx = content.length > 1 && /^\s*(`{3,}|~{3,})/.test(content[content.length - 1]) ? content.length - 1 : undefined
         text = content.slice(1, closeIdx).join('\n')
       } else {
-        // Indented: strip 4 spaces or 1 tab
         text = content.map(l => l.replace(/^( {4}|\t)/, '')).join('\n')
       }
       const nd: Node = { type: NodeType.Code, text, lang: block.meta || undefined }
@@ -653,65 +700,107 @@ export class BlockMaker {
     return ctx
   }
 
-  private _runHtmlPass(): void {
-    if (this._htmlBlock.size === 0 && this._htmlNode.size === 0) return
-    const ctx = this._makeHtmlCtx()
-    for (const bl of this._blocks) {
-      const fn = this._htmlBlock.get(bl.type)
-      if (fn) bl.html = fn(bl, ctx)
-    }
-    this._buildToc()
-  }
-
   private _extractText(nodes: Node[]): string {
     return (nodes ?? []).map(n => n.children ? this._extractText(n.children) : (n.text ?? '')).join('')
   }
 
-  private _buildToc(): void {
+  private _makeTocEntry(heading: Block): Node {
+    return {
+      type: NodeType.Link,
+      depth: heading.depth ?? 1,
+      defId: String(heading.id),
+      url: `#bmd-h-${heading.id}`,
+      children: [{ type: NodeType.Text, text: this._extractText(heading.markdown?.[0]?.children ?? []) }],
+    }
+  }
+
+  private _renderTocHtml(ctx: HtmlCtx): void {
+    const fn = this._htmlBlock.get(BlockType.Toc)
+    if (!fn) return
+    for (const bl of this._blocks) {
+      if (bl.type === BlockType.Toc && bl.dirty === DirtyFlag.Changed) {
+        bl.html = fn(bl, ctx)
+      }
+    }
+  }
+
+  private _updateToc(fullOldBlocks: Block[], newBlocks: Block[], assignedIds: Set<number>): void {
     const tocBlocks = this._blocks.filter(b => b.type === BlockType.Toc)
     if (tocBlocks.length === 0) return
 
-    // Inject id into every heading's html
-    for (const bl of this._blocks) {
-      if (bl.type === BlockType.Heading && bl.html) {
-        bl.html = bl.html.replace(/^<(h\d)>/, `<$1 id="bmd-h-${bl.id}">`)
+    const newBlockIds = new Set(newBlocks.map(b => b.id))
+    const newTocBlocks      = tocBlocks.filter(b =>  newBlockIds.has(b.id))
+    const existingTocBlocks = tocBlocks.filter(b => !newBlockIds.has(b.id))
+
+    // Toc blocks in the re-parse range: full rebuild from all current headings
+    if (newTocBlocks.length > 0) {
+      const entries = this._blocks
+        .filter(b => b.type === BlockType.Heading)
+        .map(b => this._makeTocEntry(b))
+      for (const toc of newTocBlocks) {
+        toc.markdown = entries
+        toc.dirty = DirtyFlag.Changed
       }
     }
 
-    const headings = this._blocks.filter(b => b.type === BlockType.Heading)
-    if (headings.length === 0) {
-      for (const tb of tocBlocks) tb.html = ''
-      return
-    }
+    // Toc blocks outside the range: incremental update
+    if (existingTocBlocks.length > 0) {
+      const oldHeadingIds = new Set(fullOldBlocks.map(b => b.id))
+      const deletedDefIds = new Set(
+        fullOldBlocks
+          .filter(b => !assignedIds.has(b.id) && b.type === BlockType.Heading)
+          .map(b => String(b.id))
+      )
+      const changedHeadings = newBlocks.filter(b =>
+        b.type === BlockType.Heading && b.dirty === DirtyFlag.Changed && oldHeadingIds.has(b.id))
+      const addedHeadings = newBlocks.filter(b =>
+        b.type === BlockType.Heading && !oldHeadingIds.has(b.id))
 
-    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    const parts: string[] = []
-    const stack: number[] = []
+      let changed = false
 
-    for (const b of headings) {
-      const d = b.depth ?? 1
-      const link = `<a href="#bmd-h-${b.id}">${esc(this._extractText(b.markdown?.[0]?.children ?? []))}</a>`
-      if (stack.length === 0) {
-        parts.push('<ul>', '<li>', link); stack.push(d)
-      } else {
-        const top = stack[stack.length - 1]
-        if (d > top) {
-          parts.push('<ul>', '<li>', link); stack.push(d)
-        } else if (d === top) {
-          parts.push('</li>', '<li>', link)
-        } else {
-          while (stack.length > 0 && stack[stack.length - 1] > d) {
-            parts.push('</li>', '</ul>'); stack.pop()
-          }
-          if (stack.length > 0 && stack[stack.length - 1] === d) parts.push('</li>', '<li>', link)
-          else { parts.push('<li>', link); stack.push(d) }
+      // 1. Remove deleted headings
+      if (deletedDefIds.size > 0) {
+        for (const toc of existingTocBlocks) {
+          toc.markdown = (toc.markdown ?? []).filter(n => !deletedDefIds.has(n.defId ?? ''))
+        }
+        changed = true
+      }
+
+      // 2. Update changed headings (content only)
+      for (const h of changedHeadings) {
+        const entry = this._makeTocEntry(h)
+        for (const toc of existingTocBlocks) {
+          const md = toc.markdown ?? []
+          const idx = md.findIndex(n => n.defId === String(h.id))
+          if (idx >= 0) { md[idx] = entry; changed = true }
         }
       }
-    }
-    while (stack.length > 0) { parts.push('</li>', '</ul>'); stack.pop() }
 
-    const tocHtml = `<nav>${parts.join('')}</nav>`
-    for (const tb of tocBlocks) tb.html = tocHtml
+      // 3. Insert added headings at correct position
+      for (const h of addedHeadings) {
+        const entry = this._makeTocEntry(h)
+        const hPos = this._blocks.indexOf(h)
+        const beforeIds = new Set(
+          this._blocks.slice(0, hPos)
+            .filter(b => b.type === BlockType.Heading)
+            .map(b => String(b.id))
+        )
+        for (const toc of existingTocBlocks) {
+          const md = toc.markdown ?? []
+          let insertIdx = 0
+          for (let i = md.length - 1; i >= 0; i--) {
+            if (beforeIds.has(md[i].defId ?? '')) { insertIdx = i + 1; break }
+          }
+          md.splice(insertIdx, 0, entry)
+          toc.markdown = md
+          changed = true
+        }
+      }
+
+      if (changed) {
+        for (const toc of existingTocBlocks) toc.dirty = DirtyFlag.Changed
+      }
+    }
   }
 
   private _notify(changedBlocks: Block[], deletedIds: number[], isEnd: boolean): void {

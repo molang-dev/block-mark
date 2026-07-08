@@ -5,6 +5,18 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.6] - 2026-07-08
+
+### Changed
+- 删除 `_runHtmlPass()` 全量 HTML pass；改为每个 block 处理完后立即生成其 html（仅 `dirty === Changed` 的非 Toc block）
+- TOC 结构写入 `block.markdown`（平铺 `Link` 节点，携带 `depth` / `defId`）；html 从 markdown 派生
+- parse 时每遇到 heading 即 push 一条 `Link` 节点到 `pendingEntries`，TOC block 通过共享引用 `bl.markdown = pendingEntries` 自动同步
+- update 时 TOC 增量维护：heading 内容变化 → 按 `defId` 定点更新；heading 新增 → 按位置插入；heading 删除 → 按 `defId` 过滤移除；TOC block 在重解析范围内时全量重建
+- `htmlBlock[Heading]` 渲染时注入 `id="bmd-h-{block.id}"`（取代原来在 `_buildToc` 中的字符串替换）
+- `htmlBlock[Toc]`（新增）：从 `block.markdown` 平铺节点生成嵌套 `<nav><ul><li>…` 结构
+
+---
+
 ## [1.0.5] - 2026-07-06
 
 ### Added
